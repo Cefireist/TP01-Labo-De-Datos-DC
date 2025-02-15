@@ -47,7 +47,7 @@ pp = dd.sql(
         ELSE NULL
         END AS nombre_depto
     FROM pp
-    WHERE Edad != 'nan' AND Edad != 'Total' AND Edad != 'Edad'
+    WHERE Edad != 'nan' AND Edad != 'Total' AND Edad != 'Edad' AND Edad != 'RESUMEN'
     """).df()
 
 pp[["codigo_area", "nombre_depto"]] = pp[["codigo_area", "nombre_depto"]].ffill()
@@ -59,7 +59,7 @@ pp = dd.sql(
     SELECT Edad, Casos, Porcentaje, Porcentaje_acumulado, 
     REPLACE(codigo_area, 'AREA #', '') AS codigo_area, nombre_depto
     FROM pp
-    WHERE Edad NOT LIKE 'AREA%'
+    WHERE Edad NOT LIKE 'AREA%' 
     """
     ).df()
 
@@ -67,17 +67,47 @@ pp = dd.sql(
 
 provincia = dd.sql(
     """
-    SELECT DISTINCT ID_PROV AS id_provincia, provincia AS nombre_provincia 
+    SELECT DISTINCT ID_PROV AS id_provincia, UPPER(provincia) AS nombre_provincia 
     FROM cc
     ORDER BY id_provincia;
     """
     ).df()
 #%% TABLA departamento
+
 depto = dd.sql(
     """ 
     SELECT DISTINCT CAST(SUBSTRING(codigo_area, 1, 3) AS INTEGER) AS id_provincia,
-    CAST(SUBSTRING(codigo_area, 4, 3) AS INTEGER) AS id_departamento, nombre_depto
+    CAST(SUBSTRING(codigo_area, 4, 3) AS INTEGER) AS id_departamento,
+    UPPER(nombre_depto) AS nombre_depto
     FROM pp
+    """
+    ).df()
+
+#%% Busco formar una tabla llamada cod_ee con cueanexo, id_depto e id_provincia
+
+# paso a mayusculas todo y cambio los datos de ciudad de buenos aire y tierra del fuego para que 
+# haga match con los de la tabla provincia. en esta tabla la clave primaria va a ser cueanexo
+cod_ee_normalizado = dd.sql(
+    """ 
+    SELECT Cueanexo, UPPER(Departamento) AS Departamento,
+    CASE WHEN Jurisdicción = 'Ciudad de Buenos Aires' THEN 'CIUDAD AUTÓNOMA DE BUENOS AIRES'
+    WHEN Jurisdicción = 'Tierra Del Fuego' THEN 'TIERRA DEL FUEGO, ANTÁRTIDA E ISLAS DEL ATLÁNTICO SUR'
+    ELSE UPPER(Jurisdicción)
+    END AS provincia,
+    FROM ee
+    """
+    ).df()
+
+# Hago un inner join de esta tabla normalizada con provincia para obtener id_provincia, y luego
+# otro inner join para juntar depto (uso nombre departamento e id provincia como claves)
+cod_ee = dd.sql(
+    """
+    SELECT n.Cueanexo, p.id_provincia, d.id_departamento
+    FROM cod_ee_normalizado AS n 
+    INNER JOIN provincia AS p
+    ON n.provincia = p.nombre_provincia
+    INNER JOIN depto AS d
+    ON p.id_provincia = d.id_provincia AND n.Departamento = d.nombre_depto
     """
     ).df()
 
