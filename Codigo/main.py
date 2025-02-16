@@ -16,7 +16,7 @@ OBSERVACIONES IMPORTANTES:
 
 # %% Importación de librerías
 import duckdb as dd  
-import pandas as pd
+import pandas as pd 
 import os
 
 #%% Obtengo las rutas de los archivos
@@ -24,7 +24,7 @@ import os
 _ruta_actual = os.path.dirname(__file__)
 
 # construyo la ruta a la carpeta hermana datos-puros que es donde estan los archivos
-_ruta_carpeta = os.path.join(_ruta_actual, '../datos-puros')
+_ruta_carpeta = os.path.join(_ruta_actual, './TablasOriginales')
 
 # Armo las rutas para los 3 archivos, los establecimientos educativos y el padron de personas
 # son .xlSx, no .csv
