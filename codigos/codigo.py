@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Created on Fri Feb 14 13:29:30 2025
-
-@author: saludos
+OBSERVACION IMPORTANTE:
+    la base de datos con mas departamentos es la de establecimientos educativos, que a
+    diferencia del padron de personas, incluye el departamento de ANTARTIDA en Tierra Del 
+    Fuego. Como no tenemos datos de la poblacion alli ya que no figuran en el padron de personas,
+    lo sacamos de las tablas, ya que si no reportariamos nan por ejemplo en el primer inciso
 """
 
 # %% Importación de librerías
@@ -25,7 +27,14 @@ _ruta_ee = os.path.join(_ruta_carpeta, 'padron_establecimientos_educativos_2022.
 _ruta_pp = os.path.join(_ruta_carpeta, 'padron_poblacion_2022.xlsX')
 # %% Lectura de tablas de centros culturales y establecimientos educativos
 
-cc = pd.read_csv(_ruta_cc)
+_cc = pd.read_csv(_ruta_cc)
+# Le agrego una clave primaria, no encontre combinacion de atributos suficientemente pequena
+# como para que sea la clave primaria asi que le agregue un indice
+cc = dd.sql("""
+    SELECT ROW_NUMBER() OVER () AS id_cc, *
+    FROM _cc;
+""").df()
+
 ee = pd.read_excel(_ruta_ee, header=0, skiprows=6)
 
 #%% Lectura del padron de poblacion, transformo los datos
@@ -63,6 +72,15 @@ pp = dd.sql(
     """
     ).df()
 
+# Finalmente solo me quedo con id_provincia, id_depto, edad y numero de casos
+pp = dd.sql(
+    """ 
+    SELECT CAST(SUBSTRING(codigo_area, 1, 3) AS INTEGER) AS id_provincia,
+    CAST(SUBSTRING(codigo_area, 4, 3) AS INTEGER) AS id_departamento, Edad, Casos
+    FROM pp
+    """
+    ).df()
+
 #%% TABLA provincia
 
 provincia = dd.sql(
@@ -72,7 +90,7 @@ provincia = dd.sql(
     ORDER BY id_provincia;
     """
     ).df()
-#%% TABLA departamento
+#%% TABLA departamento, tiene el nombre de departamento, el id_departamento, el id_provincia
 
 depto = dd.sql(
     """ 
@@ -87,7 +105,7 @@ depto = dd.sql(
 
 # paso a mayusculas todo y cambio los datos de ciudad de buenos aire y tierra del fuego para que 
 # haga match con los de la tabla provincia. en esta tabla la clave primaria va a ser cueanexo
-cod_ee_normalizado = dd.sql(
+_cod_ee_normalizado = dd.sql(
     """ 
     SELECT Cueanexo, UPPER(Departamento) AS Departamento,
     CASE WHEN Jurisdicción = 'Ciudad de Buenos Aires' THEN 'CIUDAD AUTÓNOMA DE BUENOS AIRES'
@@ -103,12 +121,27 @@ cod_ee_normalizado = dd.sql(
 cod_ee = dd.sql(
     """
     SELECT n.Cueanexo, p.id_provincia, d.id_departamento
-    FROM cod_ee_normalizado AS n 
+    FROM _cod_ee_normalizado AS n 
     INNER JOIN provincia AS p
     ON n.provincia = p.nombre_provincia
     INNER JOIN depto AS d
     ON p.id_provincia = d.id_provincia AND n.Departamento = d.nombre_depto
     """
     ).df()
+
+#%%
+
+ee_modalidad_comun = dd.sql(
+    """
+    SELECT Cueanexo, "Nivel inicial - Jardín maternal" AS jar_mat,
+    "Nivel inicial - Jardín de infantes" AS jar_inf, Primario, Secundario,
+    "Secundario - INET" AS Secundario_tecnico
+    FROM ee
+    """
+    ).df()
+
+
+#%%
+
 
 #%%
