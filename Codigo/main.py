@@ -161,5 +161,23 @@ Centros_culturales = dd.sql(
     """
     ).df()
 
-                
+Centros_culturales_final == dd.sql(
+    """
+    SELECT id_cc,
+    CASE 
+        WHEN POSITION(' ' IN Mail) > 0 THEN SUBSTRING(email, 1, POSITION(' ' IN Mail) - 1)
+        ELSE email
+    END AS email_1,
+    
+    CASE 
+        WHEN POSITION(' ' IN Mail) > 0 THEN SUBSTRING(email, POSITION(' ' IN Mail) + 1)
+        ELSE NULL
+    END AS email_2
+
+    FROM Centros_culturales
+    """
+
 #%%
+
+    
+
