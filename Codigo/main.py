@@ -161,33 +161,78 @@ Centros_culturales = dd.sql(
     """
     ).df()
 
-Centros_culturales_final == dd.sql(
-    """
-    SELECT id_cc,
-    CASE 
-        WHEN POSITION(' ' IN Mail) > 0 THEN SUBSTRING(email, 1, POSITION(' ' IN Mail) - 1)
-        ELSE email
-    END AS email_1,
-    
-    CASE 
-        WHEN POSITION(' ' IN Mail) > 0 THEN SUBSTRING(email, POSITION(' ' IN Mail) + 1)
-        ELSE NULL
-    END AS email_2
 
-    FROM Centros_culturales
-    """
-    
 #%%
 #Consultas en SQL
 
-## Provincias donde el primario dura 6 años
-primario6 = ["Formosa", "Tucuman", "Catamarca"] 
-    
-consultai = dd.sql(
-            """
-            SELECT id_prov, id_depto, SUM(Casos) AS poblacion_jardin, 
-            """
+"""    
+Provincias donde el primario dura 6 años
+Formosa, Tucumán, Catamarca, San Juan,
+San Luis, Córdoba, Corrientes, 
+Entre Ríos, La Pampa, Buenos Aires, 
+Chubut y Tierra del Fuego. 
+"""
+"""
+Provincias donde el primario dura 7 años
+Río Negro, Neuquén, Santa Cruz,
+Mendoza, Santa Fe, La Rioja, 
+Santiago del Estero, Chaco, Misiones, 
+Salta, Jujuy, Ciudad Autónoma de Buenos Aires. 
+"""
+primario6 = [34,90,10,70,74,14,18,30,42,6,26,94]
+primario7= [62,58,78,50,82,46,86,22,54,66,38,2]}f"{var}"
 
+consulta_jardin = dd.sql(
+            """
+            SELECT id_prov, id_depto, SUM(Casos) AS poblacion_jardin
+            FROM Personas
+            WHERE Edad <= 5
+            GROUP BY id_prov, id_depto
+            
+            """).df()
+        
+consulta_primario = dd.sql(
+            """
+            WITH primario6 AS (
+            SELECT id_prov, id_depto, SUM(Casos) AS poblacion_primaria
+            FROM Personas
+            WHERE Edad > 5 AND Edad <= 12 AND id_prov IN f"{primario6}"
+            GROUP BY id_prov, id_depto),
+            
+            primario7 AS (SELECT id_prov, id_depto, SUM(Casos) AS poblacion_primaria
+            FROM Personas
+            WHERE Edad > 5 AND Edad <= 13 AND id_prov IN f"{primario7}"
+            GROUP BY id_prov, id_depto)
+            
+            SELECT *
+            FROM primario6
+            UNION
+            SELECT *
+            FROM primario7 
+            """).df()
+
+consulta_secundario = dd.sql(
+            """
+            WITH secundario6 AS(
+            SELECT id_prov, id_depto, SUM(Casos) AS poblacion_secundaria
+            FROM Personas
+            WHERE Edad > 12 AND Edad <= 18 AND id_prov IN f"{primario6}
+            GROUP BY id_rov, id_depto),
+            
+            secundario7 AS (SELECT id_prov, id_depto, SUM(Casos) AS poblacion_secundaria
+            FROM Personas
+            WHERE Edad > 13 AND Edad <= 18 AND id_prov IN f"{primario7}"
+            GROUP BY id_prov, id_depto)
+            
+            SELECT *
+            FROM secundario6
+            UNION
+            SELECT *
+            FROM secundario7
+            """
+            ).df()
+
+#%%
 
 
 
