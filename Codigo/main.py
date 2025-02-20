@@ -176,8 +176,22 @@ Centros_culturales_final == dd.sql(
 
     FROM Centros_culturales
     """
-
+    
 #%%
+#Consultas en SQL
+
+## Provincias donde el primario dura 6 años
+primario6 = ["Formosa", "Tucuman", "Catamarca"] 
+    
+consultai = dd.sql(
+            """
+            SELECT id_prov, id_depto, SUM(Casos) AS poblacion_jardin, 
+            """
+
+
+
+
+
 
     
 
