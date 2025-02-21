@@ -34,6 +34,14 @@ for nombre, ruta in rutas.items():
     globals()[nombre] = pd.read_csv(ruta)
 
 #%% CONSULTA I
+
+"""
+Para cada departamento informar la provincia, cantidad de EE de cada nivel educativo, 
+considerando solamente la modalidad común, y cantidad de habitantes por edad según los niveles educativos. 
+El orden del reporte debe ser alfabético por provincia y dentro de las provincias, 
+descendente por cantidad de escuelas primarias. 
+"""
+
 """
 Provincias donde el primario dura 6 años:
 Formosa, Tucumán, Catamarca, San Juan,
