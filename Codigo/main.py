@@ -135,7 +135,7 @@ columnas = {
     "id_tipos_establecimiento": [0,1,2,3,4],
     "tipo_establecimiento": ["Jardin_maternal", "Jardin_infantes", "Primario", "Secundario", "Secundario_tecnico"]
 }
-id_tipos_establecimientos = pd.DataFrame(columnas)
+id_tipo_establecimiento_educativo = pd.DataFrame(columnas)
 
 # Separo para cada cuanexo si tiene uno o varios tipos de establecimiento, asi no hay tantos valores NULL
 # La clave primaria de Establecimientos_educativos es Cueanexo junto a id_tipo_establecimiento
@@ -224,7 +224,7 @@ tablas = {
     "Personas": Personas,
     "Centros_culturales": Centros_culturales,
     "Establecimientos_educativos": Establecimientos_educativos,
-    "id_tipos_establecimientos": id_tipos_establecimientos,
+    "id_tipo_establecimiento_educativo": id_tipo_establecimiento_educativo,
     "Departamentos": Departamentos,
     "Provincias": Provincias
 }
@@ -300,6 +300,6 @@ consulta_secundario = dd.sql(
             """
             ).df()
 #%%
-print(Establecimientos_educativos.head(0))
+
 
 #%%
