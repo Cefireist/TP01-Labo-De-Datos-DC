@@ -62,15 +62,26 @@ padron_personas = dd.sql(
     CASE WHEN Edad LIKE 'AREA%'
         THEN UPPER(Casos)
         ELSE NULL
-        END AS nombre_departamento
+        END AS nombre_departamento,
+    CASE WHEN Edad = 'RESUMEN'
+        THEN Edad
+        ELSE NULL
+    END AS mascara_para_borrar
     FROM padron_personas
-    WHERE LOWER(Edad) NOT IN ('nan', 'total', 'edad', 'resumen')
+    WHERE LOWER(Edad) NOT IN ('nan', 'total', 'edad')
     """).df()
-
+#%%
 # relleno hacia abajo con el ultimo valor no nulo
-padron_personas[["codigo_area", "nombre_departamento"]] = padron_personas[["codigo_area", "nombre_departamento"]].ffill()
+padron_personas[["codigo_area", "nombre_departamento","mascara_para_borrar"]] = padron_personas[["codigo_area", "nombre_departamento", "mascara_para_borrar"]].ffill()
 
-
+hola = dd.sql(
+       """
+       SELECT *
+       FROM padron_personas
+       WHERE mascara_para_borrar IS NULL
+       """
+       ).df()
+#%%
 
 # GUARDAMOS LA TABLA PERSONAS CON LOS ATRIBUTOS: edad, número de casos, id_prov, id_depto
 # eliminacion de filas usadas para el forward fill, y separo el codigo de area en id_prov 
@@ -85,7 +96,7 @@ Personas = dd.sql(
     CAST(SUBSTRING(codigo_area, 1, 2) AS INTEGER) AS id_prov,
     CAST(SUBSTRING(codigo_area, 3, 3) AS INTEGER) AS id_depto
     FROM padron_personas
-    WHERE Edad NOT LIKE 'AREA%')
+    WHERE Edad NOT LIKE 'AREA%' AND mascara_para_borrar IS NULL)
     
     SELECT id_prov,
     CASE     
@@ -93,7 +104,7 @@ Personas = dd.sql(
         WHEN id_prov = 94 AND id_depto = 15 THEN 14
         ELSE id_depto
         END AS id_depto, Edad, Casos
-    FROM pp
+    FROM pp 
     """).df()
 
 

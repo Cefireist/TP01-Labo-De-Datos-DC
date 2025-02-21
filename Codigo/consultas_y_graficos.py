@@ -47,27 +47,33 @@ Mendoza, Santa Fe, La Rioja,
 Santiago del Estero, Chaco, Misiones, 
 Salta, Jujuy, pero tambien en la Ciudad Autónoma de Buenos Aires.
 """
+
+"""
+Para cada departamento informar la provincia, cantidad de EE de cada nivel
+educativo, considerando solamente la modalidad común, y cantidad de
+habitantes por edad según los niveles educativos. El orden del reporte debe
+ser alfabético por provincia y dentro de las provincias, descendente por
+cantidad de escuelas primarias.
+"""
 primario6 = (34,90,10,70,74,14,18,30,42,6,26,94)
 primario7 = (62,58,78,50,82,46,86,22,54,66,38,2)
 
-consulta_jardin = dd.sql(
+Poblacion_jardin = dd.sql(
             """
-            SELECT id_prov, id_depto, SUM(Casos) AS poblacion_jardin
+            SELECT id_prov, id_depto, SUM(Casos) AS Poblacion_jardin
             FROM Personas
             WHERE Edad <= 5
             GROUP BY id_prov, id_depto
-            
             """).df()
-        
-consulta_primario = dd.sql(
+Poblacion_primaria = dd.sql(
             f"""
             WITH primario6 AS (
-            SELECT id_prov, id_depto, SUM(Casos) AS poblacion_primaria
+            SELECT id_prov, id_depto, SUM(Casos) AS Poblacion_primaria
             FROM Personas
             WHERE Edad > 5 AND Edad <= 12 AND id_prov IN {primario6}
             GROUP BY id_prov, id_depto),
             
-            primario7 AS (SELECT id_prov, id_depto, SUM(Casos) AS poblacion_primaria
+            primario7 AS (SELECT id_prov, id_depto, SUM(Casos) AS Poblacion_primaria
             FROM Personas
             WHERE Edad > 5 AND Edad <= 13 AND id_prov IN {primario7}
             GROUP BY id_prov, id_depto)
@@ -78,16 +84,15 @@ consulta_primario = dd.sql(
             SELECT *
             FROM primario7 
             """).df()
-
-consulta_secundario = dd.sql(
+Poblacion_secundaria = dd.sql(
             f"""
             WITH secundario6 AS(
-            SELECT id_prov, id_depto, SUM(Casos) AS poblacion_secundaria
+            SELECT id_prov, id_depto, SUM(Casos) AS Poblacion_secundaria
             FROM Personas
             WHERE Edad > 12 AND Edad <= 18 AND id_prov IN {primario6}
             GROUP BY id_prov, id_depto),
             
-            secundario7 AS (SELECT id_prov, id_depto, SUM(Casos) AS poblacion_secundaria
+            secundario7 AS (SELECT id_prov, id_depto, SUM(Casos) AS Poblacion_secundaria
             FROM Personas
             WHERE Edad > 13 AND Edad <= 18 AND id_prov IN {primario7}
             GROUP BY id_prov, id_depto)
@@ -99,6 +104,50 @@ consulta_secundario = dd.sql(
             FROM secundario7
             """
             ).df()
+Cantidad_ee = dd.sql(
+    """
+    WITH Conteo AS (
+    SELECT id_prov, id_depto, id_tipo_establecimiento, COUNT(*) AS Cantidad
+    FROM Establecimientos_educativos
+    GROUP BY id_prov, id_depto, id_tipo_establecimiento
+    ORDER BY id_prov, id_depto, id_tipo_establecimiento)
+    
+    SELECT id_prov, id_depto,
+    SUM(CASE WHEN id_tipo_establecimiento IN (0, 1) THEN Cantidad ELSE 0 END) AS Jardines,
+    SUM(CASE WHEN id_tipo_establecimiento = 2 THEN Cantidad ELSE 0 END) AS Primarias,
+    SUM(CASE WHEN id_tipo_establecimiento IN (3, 4) THEN Cantidad ELSE 0 END) AS Secundario
+    FROM Conteo
+    GROUP BY id_prov, id_depto
+    """).df()
+
+Consulta1 = dd.sql(
+    """
+    WITH prov_depto AS (
+    SELECT p.nombre_provincia AS Provincia, d.nombre_departamento AS Departamento, 
+    p.id_prov, d.id_depto
+    FROM Departamentos AS d
+    INNER JOIN Provincias AS p
+    ON d.id_prov = p.id_prov),
+    
+    Poblaciones AS (
+        SELECT pp.id_prov, pp.id_depto, Poblacion_jardin, Poblacion_primaria, Poblacion_secundaria
+        FROM Poblacion_jardin AS pj
+        INNER JOIN Poblacion_primaria AS pp
+        ON pj.id_prov = pp.id_prov AND pj.id_depto = pp.id_depto
+        INNER JOIN Poblacion_secundaria AS ps
+        ON pj.id_prov = ps.id_prov AND pj.id_depto = ps.id_depto
+        )
+    
+    SELECT Provincia, Departamento, Jardines, Poblacion_jardin, 
+    Primarias, Poblacion_primaria, Secundario, Poblacion_secundaria
+    FROM prov_depto AS pd
+    INNER JOIN Poblaciones AS pob
+    ON pd.id_prov = pob.id_prov AND pd.id_depto = pob.id_depto
+    INNER JOIN Cantidad_ee AS ce
+    ON pd.id_prov = ce.id_prov AND pd.id_depto = ce.id_depto
+    
+    """).df()
+
 
 #%% Consulta II
 
