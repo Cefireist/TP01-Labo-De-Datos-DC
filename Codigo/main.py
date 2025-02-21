@@ -75,6 +75,8 @@ padron_personas[["codigo_area", "nombre_departamento"]] = padron_personas[["codi
 # GUARDAMOS LA TABLA PERSONAS CON LOS ATRIBUTOS: edad, número de casos, id_prov, id_depto
 # eliminacion de filas usadas para el forward fill, y separo el codigo de area en id_prov 
 # e id_depto el CAST sirve para cambiar el tipo de variable, pasamos de string a integer
+
+# cambio el id de Ushuaia y RIO GRANDE porque estan distintos a la otra tabla
 Personas = dd.sql(
     """
     WITH pp AS (
@@ -84,10 +86,15 @@ Personas = dd.sql(
     CAST(SUBSTRING(codigo_area, 3, 3) AS INTEGER) AS id_depto
     FROM padron_personas
     WHERE Edad NOT LIKE 'AREA%')
-    SELECT id_prov, id_depto, Edad, Casos 
+    
+    SELECT id_prov,
+    CASE     
+        WHEN id_prov = 94 AND id_depto = 8 THEN 7
+        WHEN id_prov = 94 AND id_depto = 15 THEN 14
+        ELSE id_depto
+        END AS id_depto, Edad, Casos
     FROM pp
-    """
-    ).df()
+    """).df()
 
 
 #%% Tabla ee guarda mucha info y luego voy separando
@@ -201,13 +208,13 @@ cc = dd.sql(
 Centros_culturales = dd.sql(
     """
     WITH primer_mail AS (
-    SELECT id_cc, id_prov, id_depto, 
+    SELECT id_cc, id_prov, id_depto, Capacidad,
     CASE WHEN ',' IN Mail
     THEN SPLIT_PART(TRIM(Mail), ',', 1)
     ELSE SPLIT_PART(TRIM(Mail), ' ', 1) 
     END AS Mail
     FROM cc)
-    SELECT id_cc, id_prov, id_depto, 
+    SELECT id_cc, id_prov, id_depto, Capacidad,
     CASE WHEN '@' IN Mail
     THEN REPLACE(REPLACE(Mail,' ', ''), ',', '')
     ELSE NULL
@@ -232,74 +239,5 @@ tablas = {
 for nombre_tabla, df in tablas.items():
     ruta_del_csv = os.path.join(carpeta_destino, f"{nombre_tabla}.csv")
     df.to_csv(ruta_del_csv, index = False)
-
-#%% CONSULTA I
-"""
-Provincias donde el primario dura 6 años:
-Formosa, Tucumán, Catamarca, San Juan,
-San Luis, Córdoba, Corrientes, 
-Entre Ríos, La Pampa, Buenos Aires, 
-Chubut y Tierra del Fuego. 
-
-Provincias donde el primario dura 7 años:
-Río Negro, Neuquén, Santa Cruz,
-Mendoza, Santa Fe, La Rioja, 
-Santiago del Estero, Chaco, Misiones, 
-Salta, Jujuy, pero tambien en la Ciudad Autónoma de Buenos Aires.
-"""
-primario6 = (34,90,10,70,74,14,18,30,42,6,26,94)
-primario7 = (62,58,78,50,82,46,86,22,54,66,38,2)
-
-consulta_jardin = dd.sql(
-            """
-            SELECT id_prov, id_depto, SUM(Casos) AS poblacion_jardin
-            FROM Personas
-            WHERE Edad <= 5
-            GROUP BY id_prov, id_depto
-            
-            """).df()
-        
-consulta_primario = dd.sql(
-            f"""
-            WITH primario6 AS (
-            SELECT id_prov, id_depto, SUM(Casos) AS poblacion_primaria
-            FROM Personas
-            WHERE Edad > 5 AND Edad <= 12 AND id_prov IN {primario6}
-            GROUP BY id_prov, id_depto),
-            
-            primario7 AS (SELECT id_prov, id_depto, SUM(Casos) AS poblacion_primaria
-            FROM Personas
-            WHERE Edad > 5 AND Edad <= 13 AND id_prov IN {primario7}
-            GROUP BY id_prov, id_depto)
-            
-            SELECT *
-            FROM primario6
-            UNION
-            SELECT *
-            FROM primario7 
-            """).df()
-
-consulta_secundario = dd.sql(
-            f"""
-            WITH secundario6 AS(
-            SELECT id_prov, id_depto, SUM(Casos) AS poblacion_secundaria
-            FROM Personas
-            WHERE Edad > 12 AND Edad <= 18 AND id_prov IN {primario6}
-            GROUP BY id_prov, id_depto),
-            
-            secundario7 AS (SELECT id_prov, id_depto, SUM(Casos) AS poblacion_secundaria
-            FROM Personas
-            WHERE Edad > 13 AND Edad <= 18 AND id_prov IN {primario7}
-            GROUP BY id_prov, id_depto)
-            
-            SELECT *
-            FROM secundario6
-            UNION
-            SELECT *
-            FROM secundario7
-            """
-            ).df()
-#%%
-
 
 #%%

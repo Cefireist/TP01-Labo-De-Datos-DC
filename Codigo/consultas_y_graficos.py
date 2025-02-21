@@ -102,16 +102,93 @@ consulta_secundario = dd.sql(
 
 #%% Consulta II
 
+"""
+Para cada departamento informar la provincia y la cantidad de CC con
+capacidad mayor a 100 personas. El orden del reporte debe ser alfabético
+por provincia y dentro de las provincias, descendente por cantidad de CC de
+dicha capacidad.
+"""
 
+Consulta2 = dd.sql(
+    """
+    WITH a AS (
+    SELECT id_prov, id_depto, COUNT(*) AS Cantidad_mayor_100
+    FROM Centros_culturales
+    WHERE Capacidad > 100
+    GROUP BY id_prov, id_depto)
+    SELECT p.nombre_provincia, d.nombre_departamento, a.Cantidad_mayor_100
+    FROM a 
+    INNER JOIN Provincias AS p
+    ON p.id_prov = a.id_prov
+    INNER JOIN Departamentos AS d
+    ON d.id_depto = a.id_depto
+    GROUP BY nombre_provincia, nombre_departamento, Cantidad_mayor_100
+    ORDER BY nombre_provincia ASC, Cantidad_mayor_100 DESC
+    """
+    ).df()
 
 #%% CONSULTA III
 
+"""
+Para cada departamento, indicar provincia, cantidad de CC, cantidad de EE
+(de modalidad común) y población total. Ordenar por cantidad EE
+descendente, cantidad CC descendente, nombre de provincia ascendente y
+nombre de departamento ascendente. No omitir casos sin CC o EE.
+"""
 
 
-#%% CONSULTA IV
+Cantidad_cc = dd.sql(
+        """
+        SELECT id_prov, id_depto, COUNT(*) AS Cantidad_cc
+        FROM Centros_culturales
+        GROUP BY id_prov, id_depto
+        """).df()
 
+Cantidad_ee = dd.sql(
+    """
+    SELECT id_prov, 0 AS id_depto, COUNT(DISTINCT Cueanexo) AS Cantidad_ee
+    FROM Establecimientos_educativos
+    WHERE id_prov = 2
+    GROUP BY id_prov
+    UNION
+    SELECT id_prov, id_depto, COUNT(DISTINCT Cueanexo) AS Cantidad_ee
+    FROM Establecimientos_educativos
+    GROUP BY id_prov, id_depto
+    """).df()
+Poblacion_total = dd.sql(
+    """
+    SELECT id_prov, 0 AS id_depto, SUM(Casos) AS Poblacion
+    FROM Personas
+    WHERE id_prov = 2
+    GROUP BY id_prov
+    UNION
+    SELECT id_prov, id_depto, SUM(Casos) AS Poblacion
+    FROM Personas
+    GROUP BY id_prov, id_depto
+    """
+    ).df()
 
-
+Consulta3 = dd.sql(
+    """
+    WITH prov_depto AS (
+    SELECT d.id_prov, d.id_depto, d.nombre_departamento AS Departamento, 
+    p.nombre_provincia AS Provincia
+    FROM Departamentos AS d
+    INNER JOIN Provincias AS p
+    ON d.id_prov = p.id_prov)
+    
+    SELECT pd.Provincia, pd.Departamento, Cantidad_ee, Cantidad_cc, Poblacion
+    FROM prov_depto AS pd
+    LEFT JOIN Cantidad_ee AS ee
+    ON pd.id_prov = ee.id_prov AND pd.id_depto = ee.id_depto
+    LEFT JOIN Cantidad_cc AS cc
+    ON pd.id_prov = cc.id_prov AND pd.id_depto = cc.id_depto
+    LEFT JOIN Poblacion_total AS pt
+    ON pd.id_prov = pt.id_prov AND pd.id_depto = pt.id_depto
+    ORDER BY Cantidad_ee DESC, Cantidad_cc DESC, pd.Provincia ASC, 
+    pd.Departamento ASC;
+    """
+    ).df()
 #%% CONSULTA V
 
 
