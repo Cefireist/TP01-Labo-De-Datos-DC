@@ -33,7 +33,15 @@ rutas = {
 for nombre, ruta in rutas.items():
     globals()[nombre] = pd.read_csv(ruta)
 
-#%% CONSULTA I
+#%% CONSULTA I VERSION 2
+
+"""
+Para cada departamento informar la provincia, cantidad de EE de cada nivel educativo, 
+considerando solamente la modalidad común, y cantidad de habitantes por edad según los niveles educativos. 
+El orden del reporte debe ser alfabético por provincia y dentro de las provincias, 
+descendente por cantidad de escuelas primarias. 
+"""
+
 """
 Provincias donde el primario dura 6 años:
 Formosa, Tucumán, Catamarca, San Juan,
@@ -147,7 +155,144 @@ Consulta1 = dd.sql(
     ON pd.id_prov = ce.id_prov AND pd.id_depto = ce.id_depto
     
     """).df()
+#%% # CONSULTA 1 VERSION 1
+consulta1 = dd.sql(
+            """
+            WITH establecimientos_por_nivel AS (
+            SELECT 
+                p.nombre_provincia AS provincia,
+                d.nombre_departamento AS departamento,
+                SUM(CASE WHEN te.tipo_establecimiento = 'Jardin_maternal' THEN 1 ELSE 0 END) AS maternales,
+                SUM(CASE WHEN te.tipo_establecimiento = 'Jardin_infantes' THEN 1 ELSE 0 END) AS jardines,
+                SUM(CASE WHEN te.tipo_establecimiento = 'Primario' THEN 1 ELSE 0 END) AS primarias,
+                SUM(CASE WHEN te.tipo_establecimiento = 'Secundario' THEN 1 ELSE 0 END) AS secundarios,
+                SUM(CASE WHEN te.tipo_establecimiento = 'Secundario_tecnico' THEN 1 ELSE 0 END) AS tecnicos
+                FROM Establecimientos_educativos ee
+                JOIN id_establecimientos_educativos te ON ee.id_tipo_establecimiento = te.id_tipos_establecimiento
+                JOIN Departamentos d ON ee.id_prov = d.id_prov AND ee.id_depto = d.id_depto
+                JOIN Provincias p ON ee.id_prov = p.id_prov
+                WHERE te.tipo_establecimiento IN ('Jardin_maternal', 'Jardin_infantes', 'Primario', 'Secundario', 'Secundario_tecnico')
+                GROUP BY provincia, departamento
+            ),
+            
+            poblacion_maternal AS (
+                SELECT 
+                p.nombre_provincia AS provincia,
+                d.nombre_departamento AS departamento,
+                SUM(per.Casos) AS poblacion_maternal
+                FROM Personas per
+                JOIN Departamentos d ON per.id_prov = d.id_prov AND per.id_depto = d.id_depto
+                JOIN Provincias p ON per.id_prov = p.id_prov
+                WHERE per.Edad BETWEEN 0 AND 2
+                GROUP BY provincia, departamento
+            ),
 
+            poblacion_jardin AS (
+                SELECT 
+                p.nombre_provincia AS provincia,
+                d.nombre_departamento AS departamento,
+                SUM(per.Casos) AS poblacion_jardin
+                FROM Personas per
+                JOIN Departamentos d ON per.id_prov = d.id_prov AND per.id_depto = d.id_depto
+                JOIN Provincias p ON per.id_prov = p.id_prov
+                WHERE per.Edad BETWEEN 3 AND 5
+                GROUP BY provincia, departamento
+            ), 
+
+            primario6 AS (
+            SELECT 
+                p.nombre_provincia AS provincia,
+                d.nombre_departamento AS departamento,
+                SUM(per.Casos) AS poblacion_primaria
+                FROM Personas per
+                JOIN Departamentos d ON per.id_prov = d.id_prov AND per.id_depto = d.id_depto
+                JOIN Provincias p ON per.id_prov = p.id_prov
+                WHERE per.Edad BETWEEN 6 AND 12 AND per.id_prov IN (34,90,10,70,74,14,18,30,42,6,26,94)
+                GROUP BY provincia, departamento
+            ),
+
+            primario7 AS (
+            SELECT 
+                p.nombre_provincia AS provincia,
+                d.nombre_departamento AS departamento,
+                SUM(per.Casos) AS poblacion_primaria
+                FROM Personas per
+                JOIN Departamentos d ON per.id_prov = d.id_prov AND per.id_depto = d.id_depto
+                JOIN Provincias p ON per.id_prov = p.id_prov
+                WHERE per.Edad BETWEEN 6 AND 13 AND per.id_prov IN (62,58,78,50,82,46,86,22,54,66,38,2)
+                GROUP BY provincia, departamento
+            ), 
+
+            secundario6 AS (
+            SELECT 
+                p.nombre_provincia AS provincia,
+                d.nombre_departamento AS departamento,
+                SUM(per.Casos) AS poblacion_secundaria
+                FROM Personas per
+                JOIN Departamentos d ON per.id_prov = d.id_prov AND per.id_depto = d.id_depto
+                JOIN Provincias p ON per.id_prov = p.id_prov
+                WHERE per.Edad BETWEEN 13 AND 18 AND per.id_prov IN (34,90,10,70,74,14,18,30,42,6,26,94)
+                GROUP BY provincia, departamento
+            ),
+
+            secundario7 AS (
+            SELECT 
+                p.nombre_provincia AS provincia,
+                d.nombre_departamento AS departamento,
+                SUM(per.Casos) AS poblacion_secundaria
+                FROM Personas per
+                JOIN Departamentos d ON per.id_prov = d.id_prov AND per.id_depto = d.id_depto
+                JOIN Provincias p ON per.id_prov = p.id_prov
+                WHERE per.Edad BETWEEN 14 AND 18 AND per.id_prov IN (62,58,78,50,82,46,86,22,54,66,38,2)
+                GROUP BY provincia, departamento
+            ), 
+
+            poblacion_tecnica AS (
+            SELECT 
+                p.nombre_provincia AS provincia,
+                d.nombre_departamento AS departamento,
+                SUM(per.Casos) AS poblacion_tecnica
+                FROM Personas per
+                JOIN Departamentos d ON per.id_prov = d.id_prov AND per.id_depto = d.id_depto
+                JOIN Provincias p ON per.id_prov = p.id_prov
+                WHERE per.Edad = 19
+                GROUP BY provincia, departamento
+            ), 
+
+            poblacion_primaria AS (
+            SELECT * FROM primario6
+                UNION
+            SELECT * FROM primario7
+            ), 
+
+            poblacion_secundaria AS (
+            SELECT * FROM secundario6
+                UNION
+            SELECT * FROM secundario7
+            )
+            
+            SELECT 
+                ee.provincia,
+                ee.departamento,
+                ee.maternales,
+                pm.poblacion_maternal,
+                ee.jardines,
+                pj.poblacion_jardin,
+                ee.primarias,
+                pp.poblacion_primaria,
+                ee.secundarios,
+                ps.poblacion_secundaria,
+                ee.tecnicos,
+                pt.poblacion_tecnica
+                FROM establecimientos_por_nivel ee
+                LEFT JOIN poblacion_maternal pm ON ee.provincia = pm.provincia AND ee.departamento = pm.departamento
+                LEFT JOIN poblacion_jardin pj ON ee.provincia = pj.provincia AND ee.departamento = pj.departamento
+                LEFT JOIN poblacion_primaria pp ON ee.provincia = pp.provincia AND ee.departamento = pp.departamento
+                LEFT JOIN poblacion_secundaria ps ON ee.provincia = ps.provincia AND ee.departamento = ps.departamento
+                LEFT JOIN poblacion_tecnica pt ON ee.provincia = pt.provincia AND ee.departamento = pt.departamento
+                ORDER BY ee.provincia ASC, ee.primarias DESC;
+            """
+            ).df() 
 
 #%% Consulta II
 
