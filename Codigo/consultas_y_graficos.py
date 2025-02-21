@@ -3,7 +3,7 @@
 """
 Created on Fri Feb 21 14:09:56 2025
 
-@author: saludos
+@author: yo
 """
 
 #%% IMPORTO LIBRERIAS
@@ -189,7 +189,40 @@ Consulta3 = dd.sql(
     pd.Departamento ASC;
     """
     ).df()
-#%% CONSULTA V
+#%% CONSULTA IV
+
+"""
+Para cada departamento, indicar provincia y qué dominios de mail se usan
+más para los CC.
+"""
+# EL dominio de un mail es todo lo que hay despues del arroba @
+Consulta4 = dd.sql(
+    """
+    WITH Dominios AS (
+    SELECT id_prov, id_depto, LOWER(SPLIT_PART(TRIM(Mail), '@', 2)) AS Dominio
+    FROM Centros_culturales),
+    
+    Frecuencias AS (
+    SELECT id_prov, id_depto, Dominio, COUNT(Dominio) AS Frecuencias
+    FROM Dominios
+    GROUP BY id_prov, id_depto, Dominio),
+    
+    Max_frecuencia AS (
+        SELECT id_prov, id_depto, MAX(Frecuencias) AS Mas_frecuente
+        FROM Frecuencias
+        GROUP BY id_prov, id_depto)
+    
+    SELECT p.nombre_provincia AS Provincia, d.nombre_departamento AS Departamento,
+    f.Dominio AS Dominio_mas_frecuente
+    FROM Frecuencias AS f
+    INNER JOIN Max_frecuencia AS m
+    ON f.id_prov = m.id_prov AND f.id_depto = m.id_depto AND f.Frecuencias = m.Mas_frecuente
+    INNER JOIN Departamentos AS d
+    ON d.id_prov = f.id_prov AND d.id_depto = f.id_depto
+    INNER JOIN Provincias AS p
+    ON p.id_prov = f.id_prov
+    WHERE f.Dominio IS NOT NULL
+    """).df()
 
 
 #%% GRAFICOS
