@@ -145,7 +145,7 @@ Provincias = dd.sql(
     ).df()
 
 #%%
-Centros_culturales = dd.sql(
+cc = dd.sql(
     """
     WITH cc AS (
         SELECT id_cc, ID_PROV AS id_prov, CAST(ID_DEPTO AS VARCHAR) AS id_prov_depto,
@@ -161,26 +161,56 @@ Centros_culturales = dd.sql(
     """
     ).df()
 
+Centros_culturales = dd.sql(
+    """
+    WITH primer_mail AS (
+    SELECT id_cc, id_prov, id_depto, 
+    CASE WHEN ',' IN Mail
+    THEN SPLIT_PART(TRIM(Mail), ',', 1)
+    ELSE SPLIT_PART(TRIM(Mail), ' ', 1) 
+    END AS Mail
+    FROM cc)
+    SELECT id_cc, id_prov, id_depto, 
+    CASE WHEN '@' IN Mail
+    THEN REPLACE(REPLACE(Mail,' ', ''), ',', '')
+    ELSE NULL
+    END AS Mail
+    FROM primer_mail
+    """).df()
+    
+#%% GUARDO LAS TABLAS
 
-#%%
-#Consultas en SQL
+carpeta_destino = os.path.join(os.path.dirname(os.path.abspath(__file__)), "TablasModelo")
+os.makedirs(carpeta_destino, exist_ok = True)  # Crea la carpeta si no existe
 
-"""    
-Provincias donde el primario dura 6 años
+tablas = {
+    "Personas": Personas,
+    "Centros_culturales": Centros_culturales,
+    "Establecimientos_educativos": Establecimientos_educativos,
+    "Departamentos": Departamentos,
+    "Provincias": Provincias
+}
+
+for nombre_tabla, df in tablas.items():
+    ruta_del_csv = os.path.join(carpeta_destino, f"{nombre_tabla}.csv")
+    df.to_csv(ruta_del_csv, index = False)
+
+#%% CONSULTA I
+"""
+Provincias donde el primario dura 6 años:
 Formosa, Tucumán, Catamarca, San Juan,
 San Luis, Córdoba, Corrientes, 
 Entre Ríos, La Pampa, Buenos Aires, 
 Chubut y Tierra del Fuego. 
-"""
-"""
-Provincias donde el primario dura 7 años
+
+Provincias donde el primario dura 7 años:
 Río Negro, Neuquén, Santa Cruz,
 Mendoza, Santa Fe, La Rioja, 
 Santiago del Estero, Chaco, Misiones, 
-Salta, Jujuy, Ciudad Autónoma de Buenos Aires. 
+Salta, Jujuy, pero tambien en la Ciudad Autónoma de Buenos Aires.
 """
-primario6 = [34,90,10,70,74,14,18,30,42,6,26,94]
-primario7= [62,58,78,50,82,46,86,22,54,66,38,2]}f"{var}"
+primario6 = (34,90,10,70,74,14,18,30,42,6,26,94)
+primario7 = (62,58,78,50,82,46,86,22,54,66,38,2)
 
 consulta_jardin = dd.sql(
             """
@@ -192,16 +222,16 @@ consulta_jardin = dd.sql(
             """).df()
         
 consulta_primario = dd.sql(
-            """
+            f"""
             WITH primario6 AS (
             SELECT id_prov, id_depto, SUM(Casos) AS poblacion_primaria
             FROM Personas
-            WHERE Edad > 5 AND Edad <= 12 AND id_prov IN f"{primario6}"
+            WHERE Edad > 5 AND Edad <= 12 AND id_prov IN {primario6}
             GROUP BY id_prov, id_depto),
             
             primario7 AS (SELECT id_prov, id_depto, SUM(Casos) AS poblacion_primaria
             FROM Personas
-            WHERE Edad > 5 AND Edad <= 13 AND id_prov IN f"{primario7}"
+            WHERE Edad > 5 AND Edad <= 13 AND id_prov IN {primario7}
             GROUP BY id_prov, id_depto)
             
             SELECT *
@@ -212,16 +242,16 @@ consulta_primario = dd.sql(
             """).df()
 
 consulta_secundario = dd.sql(
-            """
+            f"""
             WITH secundario6 AS(
             SELECT id_prov, id_depto, SUM(Casos) AS poblacion_secundaria
             FROM Personas
-            WHERE Edad > 12 AND Edad <= 18 AND id_prov IN f"{primario6}
-            GROUP BY id_rov, id_depto),
+            WHERE Edad > 12 AND Edad <= 18 AND id_prov IN {primario6}
+            GROUP BY id_prov, id_depto),
             
             secundario7 AS (SELECT id_prov, id_depto, SUM(Casos) AS poblacion_secundaria
             FROM Personas
-            WHERE Edad > 13 AND Edad <= 18 AND id_prov IN f"{primario7}"
+            WHERE Edad > 13 AND Edad <= 18 AND id_prov IN {primario7}
             GROUP BY id_prov, id_depto)
             
             SELECT *
@@ -231,12 +261,4 @@ consulta_secundario = dd.sql(
             FROM secundario7
             """
             ).df()
-
 #%%
-
-
-
-
-
-    
-
