@@ -129,13 +129,50 @@ Departamentos = dd.sql(
     """
     ).df()
 #%%
+
+# Creo una tabla que vincule con una id al nombre de tipo de establecimiento y armo una tabla
+columnas = {
+    "id_tipos_establecimiento": [0,1,2,3,4],
+    "tipo_establecimiento": ["Jardin_maternal", "Jardin_infantes", "Primario", "Secundario", "Secundario_tecnico"]
+}
+id_tipos_establecimientos = pd.DataFrame(columnas)
+
+# Separo para cada cuanexo si tiene uno o varios tipos de establecimiento, asi no hay tantos valores NULL
+# La clave primaria de Establecimientos_educativos es Cueanexo junto a id_tipo_establecimiento
 Establecimientos_educativos = dd.sql(
-    """ 
-    SELECT Cueanexo, id_prov, id_depto, Jardin_maternal, Jardin_infantes, 
-    Primario, Secundario, Secundario_tecnico,
-    FROM ee
     """
-    ).df()
+    WITH ee2 AS (
+        SELECT Cueanexo, id_prov, id_depto, Jardin_maternal, Jardin_infantes, 
+        Primario, Secundario, Secundario_tecnico,
+        FROM ee
+        )
+    SELECT Cueanexo, id_prov, id_depto, 0 AS id_tipo_establecimiento
+    FROM ee2
+    WHERE Jardin_maternal = '1'
+
+    UNION 
+    SELECT Cueanexo, id_prov, id_depto, 1 AS id_tipo_establecimiento
+    FROM ee2
+    WHERE Jardin_infantes = '1'
+
+    UNION
+    SELECT Cueanexo, id_prov, id_depto, 2 AS id_tipo_establecimiento
+    FROM ee2
+    WHERE Primario = '1'
+
+    UNION
+    SELECT Cueanexo, id_prov, id_depto, 3 AS id_tipo_establecimiento
+    FROM ee2
+    WHERE Secundario = '1'
+
+    UNION
+    SELECT Cueanexo, id_prov, id_depto, 4 AS id_tipo_establecimiento
+    FROM ee2
+    WHERE Secundario_tecnico = '1';
+    """
+).df()
+
+
 #%%
 Provincias = dd.sql(
     """
@@ -187,6 +224,7 @@ tablas = {
     "Personas": Personas,
     "Centros_culturales": Centros_culturales,
     "Establecimientos_educativos": Establecimientos_educativos,
+    "id_tipos_establecimientos": id_tipos_establecimientos,
     "Departamentos": Departamentos,
     "Provincias": Provincias
 }
@@ -261,4 +299,7 @@ consulta_secundario = dd.sql(
             FROM secundario7
             """
             ).df()
+#%%
+print(Establecimientos_educativos.head(0))
+
 #%%
