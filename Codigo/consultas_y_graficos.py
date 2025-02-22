@@ -349,20 +349,19 @@ Se pueden basar en la primera consulta SQL para realizar este gráfico.
 """
 
 # y = mx + b
-def ajuste_lineal(x, y, color, label):
+def ajuste_lineal(x, y, color, label, ax):
     m, b = np.polyfit(x, y, deg=1)
     x_recta = np.linspace(min(x), max(x), 1000)
     y_pred = m * x_recta + b
     
-    plt.scatter(x, y, marker=".", color = color, label = label, alpha = 0.75)
-    plt.plot(x_recta, y_pred, color = color)
+    ax.scatter(x, y, marker=".", color=color, label=label, alpha=0.75)
+    ax.plot(x_recta, y_pred, color=color, lw=4)
     
     r2 = r2_score(y, m*x+b)
     
     print(f"r2 {label}: " + str(r2))
     
 
-    
 poblacion_jardin = Consulta1["Poblacion_jardin"]
 cantidad_jardin = Consulta1["Jardines"]
 
@@ -372,17 +371,31 @@ cantidad_primaria = Consulta1["Primarias"]
 poblacion_secundaria = Consulta1["Poblacion_secundaria"]
 cantidad_secundaria = Consulta1["Secundario"]
 
-fig, ax = plt.subplots(figsize = (12,7))
+fig, axs = plt.subplots(1, 2, figsize=(16, 7), gridspec_kw={"wspace": 0.23})
 
-ajuste_lineal(poblacion_jardin, cantidad_jardin, "red", "Jardin")
-ajuste_lineal(poblacion_primaria, cantidad_primaria, "green", "Primario")
-ajuste_lineal(poblacion_secundaria, cantidad_secundaria, "blue", "Secundario")
+axs[0].set_title("Cantidad de EE en función de la población", fontsize=16, fontweight="bold")
+ajuste_lineal(poblacion_jardin, cantidad_jardin, "red", "Jardin", axs[0])
+ajuste_lineal(poblacion_primaria, cantidad_primaria, "green", "Primario", axs[0])
+ajuste_lineal(poblacion_secundaria, cantidad_secundaria, "blue", "Secundario", axs[0])
+axs[0].set_xlabel("Población", fontsize=14)
+axs[0].set_ylabel("Cantidad de EE", fontsize=16)
+axs[0].legend(loc="lower right", fontsize=12)
+axs[0].grid(True)
 
-plt.grid(True)
-plt.xlabel("Poblacion", fontsize = 14)
-plt.ylabel("Cantidad de establecimientos educativos", fontsize = 16)
-plt.title("Cantidad de establecimientos educativos en funcion de la poblacion", fontsize = 16, fontweight = "bold")
-plt.legend(loc = "lower right", fontsize = 16)
+axs[1].set_title("Cantidad de EE en función de la población (rango acotado)", fontsize=16, fontweight="bold")
+ajuste_lineal(poblacion_jardin, cantidad_jardin, "red", "Jardin", axs[1])
+ajuste_lineal(poblacion_primaria, cantidad_primaria, "green", "Primario", axs[1])
+ajuste_lineal(poblacion_secundaria, cantidad_secundaria, "blue", "Secundario", axs[1])
+axs[1].set_xlabel("Población", fontsize=14)
+axs[1].set_ylabel("Cantidad de EE", fontsize=16)
+axs[1].legend(loc="lower right", fontsize=12)
+axs[1].grid(True)
+axs[1].set_xlim(0, 15000)
+axs[1].set_ylim(0, 80)
+
+plt.tight_layout()
+plt.show()
+ 
 
 #%% GRAFICO III
 
