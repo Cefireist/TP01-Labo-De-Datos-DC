@@ -423,7 +423,7 @@ Consulta4 = dd.sql(
 import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.metrics import r2_score
-
+import seaborn as sns
 """
 Cantidad de CC por provincia. Mostrarlos ordenados de manera decreciente 
 por dicha cantidad. 
@@ -498,6 +498,28 @@ plt.legend(loc = "lower right", fontsize = 16)
 
 #%% GRAFICO III
 
+datos = dd.sql(
+    """
+    SELECT DISTINCT p.nombre_provincia, id_depto, COUNT(*) AS Cantidad
+    FROM Establecimientos_educativos AS ee
+    INNER JOIN Provincias AS p
+    ON p.id_prov = ee.id_prov 
+    GROUP BY p.nombre_provincia, id_depto
+    """).df()
 
+medianas = datos.groupby("nombre_provincia")["Cantidad"].median()
+medianas_ordenadas = medianas.sort_values()
+
+indice = medianas_ordenadas.index
+
+plt.figure(figsize=(10, 6))
+sns.boxplot(data=datos, x="nombre_provincia", y="Cantidad", order = indice, color = "lightblue")
+
+plt.title("Cantidad de EE por Departamento en cada Provincia", fontsize=16)
+plt.xlabel("Provincia", fontsize=12)
+plt.ylabel("Cantidad de Establecimientos Educativos", fontsize=12)
+plt.xticks(rotation=90)  # Rotar etiquetas del eje x para mejor legibilidad
+plt.grid(True)
+plt.show()
 #%%
 
