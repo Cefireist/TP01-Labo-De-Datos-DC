@@ -439,35 +439,16 @@ visualizacion1 = dd.sql(
     """
     ).df()
 
-# Opcion 1: Grafico de barras vertical
-plt.figure(figsize=(13, 6))
-plt.bar(visualizacion1["provincia"], visualizacion1["cantidad_cc"], color = 'steelblue')
-plt.xlabel("Provincia")
-plt.ylabel("Cantidad de Centros Culturales")
-plt.title("Cantidad de Centros Culturales por Provincia")
-plt.grid(True, axis='y', linestyle='--', alpha=0.7)
-plt.xticks(rotation = 78)
-plt.show()
-
-# Opcion 2: Grafico de barras horizontal
+# Grafico de barras horizontal
 plt.figure(figsize=(12, 6))
 plt.barh(visualizacion1["provincia"], visualizacion1["cantidad_cc"], color="steelblue")
 plt.xlabel("Cantidad de Centros Culturales")
 plt.ylabel("Provincia")
 plt.title("Cantidad de Centros Culturales por Provincia")
 plt.grid(True, axis='x', linestyle='--', alpha=0.7)
-plt.gca().invert_yaxis()  # Invertir eje Y para que la provincia con más CC esté arriba
+plt.gca().invert_yaxis()  # Invierto el eje Y para que la provincia con más CC esté arriba
 plt.show()
 
-#Opcion 3: Grafico de torta ( el menos claro para mi)
-plt.figure(figsize=(8, 8))
-porcentajes = (visualizacion1["cantidad_cc"] / visualizacion1["cantidad_cc"].sum()) * 100
-labels_leyenda = [f"{prov} - {pct:.1f}%" for prov, pct in zip(visualizacion1["provincia"], porcentajes)]
-wedges, _ = plt.pie(visualizacion1["cantidad_cc"], labels=None, startangle=140, colors=plt.cm.Paired.colors, 
-                     wedgeprops={'edgecolor': 'black'})
-plt.legend(wedges, labels_leyenda, title="Provincias", bbox_to_anchor=(1.05, 1), loc="upper left")
-plt.title("Distribución de Centros Culturales por Provincia")
-plt.show()
 
 # %%
 
