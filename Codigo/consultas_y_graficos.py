@@ -4,34 +4,51 @@
 Created on Fri Feb 21 14:09:56 2025
 
 @author: yo
+@author: yo
 """
 
 #%% IMPORTO LIBRERIAS
 import duckdb as dd  
 import pandas as pd 
 import os
+import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.metrics import r2_score
+import seaborn as sns
 
 #%% LEO LAS TABLAS
 # obtenemos la ruta del directorio donde se esta ejecutando este codigo
-ruta_actual = os.path.dirname(__file__)
+_ruta_actual = os.path.dirname(__file__)
 
 # Ruta a la carpeta TablasOriginales
-ruta_tablas_originales = os.path.join(ruta_actual, 'TablasModelo')
+_ruta_tablas_originales = os.path.join(_ruta_actual, 'TablasModelo')
 
 # Diccionario con las rutas de los archivos CSV
-rutas = {
-    "Centros_culturales": os.path.join(ruta_tablas_originales, 'Centros_culturales.csv'),
-    "Personas": os.path.join(ruta_tablas_originales, 'Personas.csv'),
-    "Establecimientos_educativos": os.path.join(ruta_tablas_originales, 'Establecimientos_educativos.csv'),
-    "id_establecimientos_educativos": os.path.join(ruta_tablas_originales, 'id_tipo_establecimiento_educativo.csv'), 
-    "Departamentos": os.path.join(ruta_tablas_originales, 'Departamentos.csv'),
-    "Provincias": os.path.join(ruta_tablas_originales, 'Provincias.csv'),
-    
+_rutas = {
+    "Centros_culturales": os.path.join(_ruta_tablas_originales, 'Centros_culturales.csv'),
+    "Poblacion": os.path.join(_ruta_tablas_originales, 'Poblacion.csv'),
+    "Establecimientos_educativos": os.path.join(_ruta_tablas_originales, 'Establecimientos_educativos.csv'),
+    "Modalidades": os.path.join(_ruta_tablas_originales, 'Modalidades.csv'), 
+    "Departamentos": os.path.join(_ruta_tablas_originales, 'Departamentos.csv'),
+    "Provincias": os.path.join(_ruta_tablas_originales, 'Provincias.csv'),
+    "ee_modalidades": os.path.join(_ruta_tablas_originales, 'ee_modalidades.csv')
 }
 
+
+
+
 # guardo en una variable el csv con el nombre, para eso uso globals que genera una variable dinamicamente 
-for nombre, ruta in rutas.items():
+for nombre, ruta in _rutas.items():
     globals()[nombre] = pd.read_csv(ruta)
+
+#%% CONSULTA I VERSION 2
+
+"""
+Para cada departamento informar la provincia, cantidad de EE de cada nivel educativo, 
+considerando solamente la modalidad común, y cantidad de habitantes por edad según los niveles educativos. 
+El orden del reporte debe ser alfabético por provincia y dentro de las provincias, 
+descendente por cantidad de escuelas primarias. 
+"""
 
 #%% CONSULTA I VERSION 2
 
@@ -63,26 +80,35 @@ habitantes por edad según los niveles educativos. El orden del reporte debe
 ser alfabético por provincia y dentro de las provincias, descendente por
 cantidad de escuelas primarias.
 """
+
+"""
+Para cada departamento informar la provincia, cantidad de EE de cada nivel
+educativo, considerando solamente la modalidad común, y cantidad de
+habitantes por edad según los niveles educativos. El orden del reporte debe
+ser alfabético por provincia y dentro de las provincias, descendente por
+cantidad de escuelas primarias.
+"""
 primario6 = (34,90,10,70,74,14,18,30,42,6,26,94)
 primario7 = (62,58,78,50,82,46,86,22,54,66,38,2)
 
 Poblacion_jardin = dd.sql(
             """
             SELECT id_prov, id_depto, SUM(Casos) AS Poblacion_jardin
-            FROM Personas
+            FROM Poblacion
             WHERE Edad <= 5
             GROUP BY id_prov, id_depto
             """).df()
+            
 Poblacion_primaria = dd.sql(
             f"""
             WITH primario6 AS (
             SELECT id_prov, id_depto, SUM(Casos) AS Poblacion_primaria
-            FROM Personas
+            FROM Poblacion
             WHERE Edad > 5 AND Edad <= 12 AND id_prov IN {primario6}
             GROUP BY id_prov, id_depto),
             
             primario7 AS (SELECT id_prov, id_depto, SUM(Casos) AS Poblacion_primaria
-            FROM Personas
+            FROM Poblacion
             WHERE Edad > 5 AND Edad <= 13 AND id_prov IN {primario7}
             GROUP BY id_prov, id_depto)
             
@@ -92,16 +118,17 @@ Poblacion_primaria = dd.sql(
             SELECT *
             FROM primario7 
             """).df()
+            
 Poblacion_secundaria = dd.sql(
             f"""
             WITH secundario6 AS(
             SELECT id_prov, id_depto, SUM(Casos) AS Poblacion_secundaria
-            FROM Personas
+            FROM Poblacion
             WHERE Edad > 12 AND Edad <= 18 AND id_prov IN {primario6}
             GROUP BY id_prov, id_depto),
             
             secundario7 AS (SELECT id_prov, id_depto, SUM(Casos) AS Poblacion_secundaria
-            FROM Personas
+            FROM Poblacion
             WHERE Edad > 13 AND Edad <= 18 AND id_prov IN {primario7}
             GROUP BY id_prov, id_depto)
             
@@ -112,18 +139,20 @@ Poblacion_secundaria = dd.sql(
             FROM secundario7
             """
             ).df()
+
 Cantidad_ee = dd.sql(
     """
     WITH Conteo AS (
-    SELECT id_prov, id_depto, id_tipo_establecimiento, COUNT(*) AS Cantidad
-    FROM Establecimientos_educativos
-    GROUP BY id_prov, id_depto, id_tipo_establecimiento
-    ORDER BY id_prov, id_depto, id_tipo_establecimiento)
+    SELECT ee.id_prov, ee.id_depto, em.id_modalidad, COUNT(*) AS Cantidad
+    FROM Establecimientos_educativos AS ee
+    INNER JOIN ee_modalidades AS em ON ee.Cueanexo = em.Cueanexo
+    GROUP BY id_prov, id_depto, id_modalidad
+    ORDER BY id_prov, id_depto, id_modalidad)
     
     SELECT id_prov, id_depto,
-    SUM(CASE WHEN id_tipo_establecimiento IN (0, 1) THEN Cantidad ELSE 0 END) AS Jardines,
-    SUM(CASE WHEN id_tipo_establecimiento = 2 THEN Cantidad ELSE 0 END) AS Primarias,
-    SUM(CASE WHEN id_tipo_establecimiento IN (3, 4) THEN Cantidad ELSE 0 END) AS Secundario
+    SUM(CASE WHEN id_modalidad IN (0, 1) THEN Cantidad ELSE 0 END) AS Jardines,
+    SUM(CASE WHEN id_modalidad = 2 THEN Cantidad ELSE 0 END) AS Primarias,
+    SUM(CASE WHEN id_modalidad IN (3, 4) THEN Cantidad ELSE 0 END) AS Secundario
     FROM Conteo
     GROUP BY id_prov, id_depto
     """).df()
@@ -131,7 +160,7 @@ Cantidad_ee = dd.sql(
 Consulta1 = dd.sql(
     """
     WITH prov_depto AS (
-    SELECT p.nombre_provincia AS Provincia, d.nombre_departamento AS Departamento, 
+    SELECT p.nombre AS Provincia, d.nombre AS Departamento, 
     p.id_prov, d.id_depto
     FROM Departamentos AS d
     INNER JOIN Provincias AS p
@@ -155,144 +184,6 @@ Consulta1 = dd.sql(
     ON pd.id_prov = ce.id_prov AND pd.id_depto = ce.id_depto
     
     """).df()
-#%% # CONSULTA 1 VERSION 1
-consulta1 = dd.sql(
-            """
-            WITH establecimientos_por_nivel AS (
-            SELECT 
-                p.nombre_provincia AS provincia,
-                d.nombre_departamento AS departamento,
-                SUM(CASE WHEN te.tipo_establecimiento = 'Jardin_maternal' THEN 1 ELSE 0 END) AS maternales,
-                SUM(CASE WHEN te.tipo_establecimiento = 'Jardin_infantes' THEN 1 ELSE 0 END) AS jardines,
-                SUM(CASE WHEN te.tipo_establecimiento = 'Primario' THEN 1 ELSE 0 END) AS primarias,
-                SUM(CASE WHEN te.tipo_establecimiento = 'Secundario' THEN 1 ELSE 0 END) AS secundarios,
-                SUM(CASE WHEN te.tipo_establecimiento = 'Secundario_tecnico' THEN 1 ELSE 0 END) AS tecnicos
-                FROM Establecimientos_educativos ee
-                JOIN id_establecimientos_educativos te ON ee.id_tipo_establecimiento = te.id_tipos_establecimiento
-                JOIN Departamentos d ON ee.id_prov = d.id_prov AND ee.id_depto = d.id_depto
-                JOIN Provincias p ON ee.id_prov = p.id_prov
-                WHERE te.tipo_establecimiento IN ('Jardin_maternal', 'Jardin_infantes', 'Primario', 'Secundario', 'Secundario_tecnico')
-                GROUP BY provincia, departamento
-            ),
-            
-            poblacion_maternal AS (
-                SELECT 
-                p.nombre_provincia AS provincia,
-                d.nombre_departamento AS departamento,
-                SUM(per.Casos) AS poblacion_maternal
-                FROM Personas per
-                JOIN Departamentos d ON per.id_prov = d.id_prov AND per.id_depto = d.id_depto
-                JOIN Provincias p ON per.id_prov = p.id_prov
-                WHERE per.Edad BETWEEN 0 AND 2
-                GROUP BY provincia, departamento
-            ),
-
-            poblacion_jardin AS (
-                SELECT 
-                p.nombre_provincia AS provincia,
-                d.nombre_departamento AS departamento,
-                SUM(per.Casos) AS poblacion_jardin
-                FROM Personas per
-                JOIN Departamentos d ON per.id_prov = d.id_prov AND per.id_depto = d.id_depto
-                JOIN Provincias p ON per.id_prov = p.id_prov
-                WHERE per.Edad BETWEEN 3 AND 5
-                GROUP BY provincia, departamento
-            ), 
-
-            primario6 AS (
-            SELECT 
-                p.nombre_provincia AS provincia,
-                d.nombre_departamento AS departamento,
-                SUM(per.Casos) AS poblacion_primaria
-                FROM Personas per
-                JOIN Departamentos d ON per.id_prov = d.id_prov AND per.id_depto = d.id_depto
-                JOIN Provincias p ON per.id_prov = p.id_prov
-                WHERE per.Edad BETWEEN 6 AND 12 AND per.id_prov IN (34,90,10,70,74,14,18,30,42,6,26,94)
-                GROUP BY provincia, departamento
-            ),
-
-            primario7 AS (
-            SELECT 
-                p.nombre_provincia AS provincia,
-                d.nombre_departamento AS departamento,
-                SUM(per.Casos) AS poblacion_primaria
-                FROM Personas per
-                JOIN Departamentos d ON per.id_prov = d.id_prov AND per.id_depto = d.id_depto
-                JOIN Provincias p ON per.id_prov = p.id_prov
-                WHERE per.Edad BETWEEN 6 AND 13 AND per.id_prov IN (62,58,78,50,82,46,86,22,54,66,38,2)
-                GROUP BY provincia, departamento
-            ), 
-
-            secundario6 AS (
-            SELECT 
-                p.nombre_provincia AS provincia,
-                d.nombre_departamento AS departamento,
-                SUM(per.Casos) AS poblacion_secundaria
-                FROM Personas per
-                JOIN Departamentos d ON per.id_prov = d.id_prov AND per.id_depto = d.id_depto
-                JOIN Provincias p ON per.id_prov = p.id_prov
-                WHERE per.Edad BETWEEN 13 AND 18 AND per.id_prov IN (34,90,10,70,74,14,18,30,42,6,26,94)
-                GROUP BY provincia, departamento
-            ),
-
-            secundario7 AS (
-            SELECT 
-                p.nombre_provincia AS provincia,
-                d.nombre_departamento AS departamento,
-                SUM(per.Casos) AS poblacion_secundaria
-                FROM Personas per
-                JOIN Departamentos d ON per.id_prov = d.id_prov AND per.id_depto = d.id_depto
-                JOIN Provincias p ON per.id_prov = p.id_prov
-                WHERE per.Edad BETWEEN 14 AND 18 AND per.id_prov IN (62,58,78,50,82,46,86,22,54,66,38,2)
-                GROUP BY provincia, departamento
-            ), 
-
-            poblacion_tecnica AS (
-            SELECT 
-                p.nombre_provincia AS provincia,
-                d.nombre_departamento AS departamento,
-                SUM(per.Casos) AS poblacion_tecnica
-                FROM Personas per
-                JOIN Departamentos d ON per.id_prov = d.id_prov AND per.id_depto = d.id_depto
-                JOIN Provincias p ON per.id_prov = p.id_prov
-                WHERE per.Edad = 19
-                GROUP BY provincia, departamento
-            ), 
-
-            poblacion_primaria AS (
-            SELECT * FROM primario6
-                UNION
-            SELECT * FROM primario7
-            ), 
-
-            poblacion_secundaria AS (
-            SELECT * FROM secundario6
-                UNION
-            SELECT * FROM secundario7
-            )
-            
-            SELECT 
-                ee.provincia,
-                ee.departamento,
-                ee.maternales,
-                pm.poblacion_maternal,
-                ee.jardines,
-                pj.poblacion_jardin,
-                ee.primarias,
-                pp.poblacion_primaria,
-                ee.secundarios,
-                ps.poblacion_secundaria,
-                ee.tecnicos,
-                pt.poblacion_tecnica
-                FROM establecimientos_por_nivel ee
-                LEFT JOIN poblacion_maternal pm ON ee.provincia = pm.provincia AND ee.departamento = pm.departamento
-                LEFT JOIN poblacion_jardin pj ON ee.provincia = pj.provincia AND ee.departamento = pj.departamento
-                LEFT JOIN poblacion_primaria pp ON ee.provincia = pp.provincia AND ee.departamento = pp.departamento
-                LEFT JOIN poblacion_secundaria ps ON ee.provincia = ps.provincia AND ee.departamento = ps.departamento
-                LEFT JOIN poblacion_tecnica pt ON ee.provincia = pt.provincia AND ee.departamento = pt.departamento
-                ORDER BY ee.provincia ASC, ee.primarias DESC;
-            """
-            ).df() 
 
 #%% Consulta II
 
@@ -310,14 +201,14 @@ Consulta2 = dd.sql(
     FROM Centros_culturales
     WHERE Capacidad > 100
     GROUP BY id_prov, id_depto)
-    SELECT p.nombre_provincia, d.nombre_departamento, a.Cantidad_mayor_100
+    SELECT p.nombre, d.nombre, a.Cantidad_mayor_100
     FROM a 
     INNER JOIN Provincias AS p
     ON p.id_prov = a.id_prov
     INNER JOIN Departamentos AS d
     ON d.id_depto = a.id_depto
-    GROUP BY nombre_provincia, nombre_departamento, Cantidad_mayor_100
-    ORDER BY nombre_provincia ASC, Cantidad_mayor_100 DESC
+    GROUP BY p.nombre, d.nombre, Cantidad_mayor_100
+    ORDER BY p.nombre ASC, Cantidad_mayor_100 DESC
     """
     ).df()
 
@@ -349,15 +240,16 @@ Cantidad_ee = dd.sql(
     FROM Establecimientos_educativos
     GROUP BY id_prov, id_depto
     """).df()
+    
 Poblacion_total = dd.sql(
     """
-    SELECT id_prov, 0 AS id_depto, SUM(Casos) AS Poblacion
-    FROM Personas
+    SELECT id_prov, 0 AS id_depto, SUM(Casos) AS Personas
+    FROM Poblacion
     WHERE id_prov = 2
     GROUP BY id_prov
     UNION
-    SELECT id_prov, id_depto, SUM(Casos) AS Poblacion
-    FROM Personas
+    SELECT id_prov, id_depto, SUM(Casos) AS Personas
+    FROM Poblacion
     GROUP BY id_prov, id_depto
     """
     ).df()
@@ -365,13 +257,13 @@ Poblacion_total = dd.sql(
 Consulta3 = dd.sql(
     """
     WITH prov_depto AS (
-    SELECT d.id_prov, d.id_depto, d.nombre_departamento AS Departamento, 
-    p.nombre_provincia AS Provincia
+    SELECT d.id_prov, d.id_depto, d.nombre AS Departamento, 
+    p.nombre AS Provincia
     FROM Departamentos AS d
     INNER JOIN Provincias AS p
     ON d.id_prov = p.id_prov)
     
-    SELECT pd.Provincia, pd.Departamento, Cantidad_ee, Cantidad_cc, Poblacion
+    SELECT pd.Provincia, pd.Departamento, Cantidad_ee, Cantidad_cc, Personas
     FROM prov_depto AS pd
     LEFT JOIN Cantidad_ee AS ee
     ON pd.id_prov = ee.id_prov AND pd.id_depto = ee.id_depto
@@ -406,7 +298,7 @@ Consulta4 = dd.sql(
         FROM Frecuencias
         GROUP BY id_prov, id_depto)
     
-    SELECT p.nombre_provincia AS Provincia, d.nombre_departamento AS Departamento,
+    SELECT p.nombre AS Provincia, d.nombre AS Departamento,
     f.Dominio AS Dominio_mas_frecuente
     FROM Frecuencias AS f
     INNER JOIN Max_frecuencia AS m
@@ -418,22 +310,17 @@ Consulta4 = dd.sql(
     WHERE f.Dominio IS NOT NULL
     """).df()
 
+#%% GRAFICO I
 
-#%% IMPORTAMOS MAS librerias
-import numpy as np
-import matplotlib.pyplot as plt
-from sklearn.metrics import r2_score
-import seaborn as sns
 """
 Cantidad de CC por provincia. Mostrarlos ordenados de manera decreciente 
 por dicha cantidad. 
 """
-#%% GRAFICO I
 
 visualizacion1 = dd.sql(
     """
     SELECT 
-        p.nombre_provincia AS provincia,
+        p.nombre AS provincia,
         COUNT(cc.id_cc) AS cantidad_cc,
         FROM Centros_culturales AS cc
         JOIN Provincias AS p ON cc.id_prov = p.id_prov
@@ -494,27 +381,26 @@ ajuste_lineal(poblacion_secundaria, cantidad_secundaria, "blue", "Secundario")
 plt.xlabel("Poblacion", fontsize = 14)
 plt.ylabel("Cantidad de establecimientos educativos", fontsize = 16)
 plt.title("Cantidad de establecimientos educativos en funcion de la poblacion", fontsize = 16, fontweight = "bold")
-plt.grid()
 plt.legend(loc = "lower right", fontsize = 16)
 
 #%% GRAFICO III
 
 datos = dd.sql(
     """
-    SELECT DISTINCT p.nombre_provincia, id_depto, COUNT(*) AS Cantidad
+    SELECT DISTINCT p.nombre, id_depto, COUNT(*) AS Cantidad
     FROM Establecimientos_educativos AS ee
     INNER JOIN Provincias AS p
     ON p.id_prov = ee.id_prov 
-    GROUP BY p.nombre_provincia, id_depto
+    GROUP BY p.nombre, id_depto
     """).df()
 
-medianas = datos.groupby("nombre_provincia")["Cantidad"].median()
+medianas = datos.groupby("nombre")["Cantidad"].median()
 medianas_ordenadas = medianas.sort_values()
 
 indice = medianas_ordenadas.index
 
 plt.figure(figsize=(10, 6))
-sns.boxplot(data=datos, x="nombre_provincia", y="Cantidad", order = indice, color = "lightblue")
+sns.boxplot(data=datos, x="nombre", y="Cantidad", order = indice, color = "lightblue")
 
 plt.title("Cantidad de EE por Departamento en cada Provincia", fontsize=16)
 plt.xlabel("Provincia", fontsize=12)
@@ -522,70 +408,57 @@ plt.ylabel("Cantidad de Establecimientos Educativos", fontsize=12)
 plt.xticks(rotation=90)  # Rotar etiquetas del eje x para mejor legibilidad
 plt.grid(True)
 plt.show()
-#%%
-"""
-Relación entre la cantidad de CC cada mil habitantes y de EE cada mil
-habitantes
-"""
+#%% GRAFICO IV
 
-data = dd.sql(
-    """
-    SELECT Provincia, Departamento, 
-    (Cantidad_ee / Poblacion) * 1000 AS EE_cada_mil,
-    (Cantidad_cc / Poblacion) * 1000 AS CC_cada_mil
-    FROM Consulta3
-    WHERE Cantidad_ee IS NOT NULL AND Cantidad_cc IS NOT NULL
-    AND Poblacion IS NOT NULL;
-    """
-    ).df()
+# por provincia obtener la cant de cc y ee cada 1000 habitantes
+
+# cant habitantes por prov
+poblacion_por_provincia = dd.sql("""
+                                 SELECT id_prov, SUM(Casos) AS cantidad
+                                 FROM Poblacion
+                                 GROUP BY id_prov
+                                 """).df()
+poblacion_por_provincia["cantidad"] = poblacion_por_provincia["cantidad"].astype(int)
+
+# cant cc por prov
+cc_por_provincia = dd.sql("""
+                            SELECT id_prov, COUNT(*) AS cantidad
+                            FROM Centros_culturales
+                            GROUP BY id_prov
+                          """).df()
+
+# cant ee por prov
+ee_por_provincia = dd.sql("""
+                            SELECT id_prov, COUNT(*) AS cantidad
+                            FROM Establecimientos_educativos
+                            GROUP BY id_prov
+                          """).df()
+
+# armo tabla con nombre provincia y cantidad de ee y cc cada mil habitantes 
+cantidad_eecc_cada_mil = dd.sql("""
+                                 SELECT p.id_prov, p.nombre, ((ccp.cantidad*1000) / ppp.cantidad) AS cant_cc_cada_mil, ((eep.cantidad*1000) / ppp.cantidad) AS cant_ee_cada_mil
+                                 FROM Provincias p
+                                 INNER JOIN cc_por_provincia ccp ON ccp.id_prov = p.id_prov
+                                 INNER JOIN poblacion_por_provincia ppp ON ppp.id_prov = p.id_prov 
+                                 INNER JOIN ee_por_provincia eep ON eep.id_prov = p.id_prov
+                                 ORDER BY cant_ee_cada_mil DESC
+                                """).df()
 
 
-plt.figure(figsize=(8, 6))
-sns.scatterplot(data = data, x ="EE_cada_mil", y="CC_cada_mil")
+# grafico barras apiladas
+plt.figure(figsize=(12, 6))
 
-plt.title("Relación entre CC cada mil habitantes y EE cada mil habitantes", fontsize=16)
-plt.xlabel("EE cada mil habitantes", fontsize = 14)
-plt.ylabel("CC cada mil habitantes", fontsize = 14)
-plt.grid(True)
-plt.show()
+plt.bar(cantidad_eecc_cada_mil["nombre"], cantidad_eecc_cada_mil["cant_ee_cada_mil"], label="Establecimientos Educativos", color="royalblue")
+plt.bar(cantidad_eecc_cada_mil["nombre"], cantidad_eecc_cada_mil["cant_cc_cada_mil"], bottom=cantidad_eecc_cada_mil["cant_ee_cada_mil"], label="Centros Culturales", color="orange")
 
-#%% GRAFICO  IV
-
-relacion = dd.sql(
-    """ 
-    SELECT 
-    p.id_prov,
-    p.id_depto,
-    p.Poblacion,
-    COALESCE(ee.cantidad_ee, 0) AS cantidad_ee,
-    COALESCE(cc.cantidad_cc, 0) AS cantidad_cc,
-    (COALESCE(cc.cantidad_cc, 0) * 1000.0 / p.Poblacion) AS cc_por_mil_habitantes,
-    (COALESCE(ee.cantidad_ee, 0) * 1000.0 / p.Poblacion) AS ee_por_mil_habitantes
-FROM Poblacion_total p
-LEFT JOIN Cantidad_ee ee ON p.id_prov = ee.id_prov AND p.id_depto = ee.id_depto
-LEFT JOIN Cantidad_cc cc ON p.id_prov = cc.id_prov AND p.id_depto = cc.id_depto
-ORDER BY cc_por_mil_habitantes DESC;
-
-    """
-    ).df()
-
-x = np.arange(len(relacion["id_prov"]))  # Posiciones para las provincias
-width = 0.4  # Ancho de las barras
-
-fig, ax = plt.subplots(figsize=(12, 6))
-
-bars1 = ax.bar(x - width/2, relacion["cc_por_mil_habitantes"], width, label="CC por 1000 habitantes", color="steelblue")
-bars2 = ax.bar(x + width/2, relacion["ee_por_mil_habitantes"], width, label="EE por 1000 habitantes", color="darkorange")
-
-ax.set_xlabel("Provincia")
-ax.set_ylabel("Cantidad por cada 1000 habitantes")
-ax.set_title("Comparación de CC y EE por cada 1000 habitantes")
-ax.set_xticks(x)
-ax.set_xticklabels(relacion["id_prov"], rotation=90)
-ax.legend()
-
-ax.grid(True, axis='y', linestyle='--', alpha=0.7)
+plt.xlabel("Provincia")
+plt.ylabel("Cantidad cada 1000 habitantes")
+plt.title("Relación entre Centros Culturales y Establecimientos Educativos cada 1000 habitantes")
+plt.xticks(rotation=45, ha="right") 
+plt.legend()  
 
 plt.show()
-#%%
 
+
+
+#%%
