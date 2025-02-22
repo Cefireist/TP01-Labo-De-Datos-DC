@@ -548,4 +548,44 @@ plt.xlabel("EE cada mil habitantes", fontsize = 14)
 plt.ylabel("CC cada mil habitantes", fontsize = 14)
 plt.grid(True)
 plt.show()
+
+#%% GRAFICO  IV
+
+relacion = dd.sql(
+    """ 
+    SELECT 
+    p.id_prov,
+    p.id_depto,
+    p.Poblacion,
+    COALESCE(ee.cantidad_ee, 0) AS cantidad_ee,
+    COALESCE(cc.cantidad_cc, 0) AS cantidad_cc,
+    (COALESCE(cc.cantidad_cc, 0) * 1000.0 / p.Poblacion) AS cc_por_mil_habitantes,
+    (COALESCE(ee.cantidad_ee, 0) * 1000.0 / p.Poblacion) AS ee_por_mil_habitantes
+FROM Poblacion_total p
+LEFT JOIN Cantidad_ee ee ON p.id_prov = ee.id_prov AND p.id_depto = ee.id_depto
+LEFT JOIN Cantidad_cc cc ON p.id_prov = cc.id_prov AND p.id_depto = cc.id_depto
+ORDER BY cc_por_mil_habitantes DESC;
+
+    """
+    ).df()
+
+x = np.arange(len(relacion["id_prov"]))  # Posiciones para las provincias
+width = 0.4  # Ancho de las barras
+
+fig, ax = plt.subplots(figsize=(12, 6))
+
+bars1 = ax.bar(x - width/2, relacion["cc_por_mil_habitantes"], width, label="CC por 1000 habitantes", color="steelblue")
+bars2 = ax.bar(x + width/2, relacion["ee_por_mil_habitantes"], width, label="EE por 1000 habitantes", color="darkorange")
+
+ax.set_xlabel("Provincia")
+ax.set_ylabel("Cantidad por cada 1000 habitantes")
+ax.set_title("Comparación de CC y EE por cada 1000 habitantes")
+ax.set_xticks(x)
+ax.set_xticklabels(relacion["id_prov"], rotation=90)
+ax.legend()
+
+ax.grid(True, axis='y', linestyle='--', alpha=0.7)
+
+plt.show()
 #%%
+
