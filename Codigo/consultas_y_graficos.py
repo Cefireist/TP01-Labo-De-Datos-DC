@@ -378,6 +378,7 @@ ajuste_lineal(poblacion_jardin, cantidad_jardin, "red", "Jardin")
 ajuste_lineal(poblacion_primaria, cantidad_primaria, "green", "Primario")
 ajuste_lineal(poblacion_secundaria, cantidad_secundaria, "blue", "Secundario")
 
+plt.grid(True)
 plt.xlabel("Poblacion", fontsize = 14)
 plt.ylabel("Cantidad de establecimientos educativos", fontsize = 16)
 plt.title("Cantidad de establecimientos educativos en funcion de la poblacion", fontsize = 16, fontweight = "bold")
@@ -408,7 +409,7 @@ plt.ylabel("Cantidad de Establecimientos Educativos", fontsize=12)
 plt.xticks(rotation=90)  # Rotar etiquetas del eje x para mejor legibilidad
 plt.grid(True)
 plt.show()
-#%% GRAFICO IV
+#%% GRAFICO IV VERSION 1
 
 # por provincia obtener la cant de cc y ee cada 1000 habitantes
 
@@ -460,5 +461,32 @@ plt.legend()
 plt.show()
 
 
+
+#%% GRAFICO 4 VERSION 2
+"""
+Relación entre la cantidad de CC cada mil habitantes y de EE cada mil
+habitantes
+"""
+
+data = dd.sql(
+    """
+    SELECT Provincia, Departamento, 
+    (Cantidad_ee / Poblacion) * 1000 AS EE_cada_mil,
+    (Cantidad_cc / Poblacion) * 1000 AS CC_cada_mil
+    FROM Consulta3
+    WHERE Cantidad_ee IS NOT NULL AND Cantidad_cc IS NOT NULL
+    AND Poblacion IS NOT NULL;
+    """
+    ).df()
+
+
+plt.figure(figsize=(8, 6))
+sns.scatterplot(data = data, x ="EE_cada_mil", y="CC_cada_mil")
+
+plt.title("Relación entre CC cada mil habitantes y EE cada mil habitantes", fontsize=16)
+plt.xlabel("EE cada mil habitantes", fontsize = 14)
+plt.ylabel("CC cada mil habitantes", fontsize = 14)
+plt.grid(True)
+plt.show()
 
 #%%
