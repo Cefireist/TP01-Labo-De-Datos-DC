@@ -48,6 +48,30 @@ Centros_culturales = dd.sql("""
     FROM _centros_culturales_original;
 """).df()
 
+#%%
+ # GQM DE LA TABLA POBLACION
+import pandas as pd
+
+# Cargar el archivo (ajustar la ruta según corresponda)
+
+df = pd.read_excel(_ruta_pp, usecols=[1,2], header=None, skiprows=13) # Ajustar 'skiprows' si hay encabezados
+df.columns = ["Edad", "Casos"]
+
+# Intentar convertir la primera columna a números, los valores no numéricos se convierten en NaN
+df["Edad"] = pd.to_numeric(df["Edad"], errors='coerce')
+
+# Contar filas donde la conversión falló (valores que no son números enteros)
+filas_no_numericas = df[df["Edad"].isna()]
+
+# Calcular el porcentaje de estas filas en el dataset
+total_filas = len(df)
+filas_no_numericas_count = len(filas_no_numericas)
+porcentaje_no_numericas = (filas_no_numericas_count / total_filas) * 100
+
+# Mostrar resultados
+print(f"Total de filas en el dataset: {total_filas}")
+print(f"Cantidad de filas donde la primera columna no es un número: {filas_no_numericas_count}")
+print(f"Porcentaje de filas afectadas: {porcentaje_no_numericas:.2f}%")
 
 #%% LIMPIEZA TABLA PADRON DE PERSONAS
 
@@ -98,12 +122,7 @@ Poblacion = dd.sql(
     CAST(SUBSTRING(codigo_area, 3, 3) AS INTEGER) AS id_depto
     FROM _padron_personas
     WHERE Edad NOT LIKE 'AREA%' AND mascara_para_borrar IS NULL)
-    SELECT id_prov,
-    CASE     
-        WHEN id_prov = 94 AND id_depto = 8 THEN 7
-        WHEN id_prov = 94 AND id_depto = 15 THEN 14
-        ELSE id_depto
-        END AS id_depto, Edad, Casos 
+    SELECT id_prov, id_depto, Edad, Casos 
     FROM pp
     """
     ).df()
@@ -135,10 +154,17 @@ ee_info = dd.sql(
     FROM ee_2
     """).df()
 
-#%%
+#%%    CASE     
+       
 Departamentos = dd.sql(
     """ 
-    SELECT DISTINCT id_prov, id_depto, nombre_departamento AS nombre
+    SELECT DISTINCT id_prov,  
+    CASE 
+        WHEN id_prov = 94 AND id_depto = 7 THEN 8
+        WHEN id_prov = 94 AND id_depto = 14 THEN 15
+        ELSE id_depto
+        END AS id_depto, 
+        nombre_departamento AS nombre
     FROM ee_info
     UNION 
     SELECT DISTINCT ID_PROV, CAST(SUBSTRING(CAST(ID_DEPTO AS VARCHAR), 2, 4) AS INTEGER) AS id_depto, Departamento
