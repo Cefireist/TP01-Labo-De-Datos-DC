@@ -1,26 +1,36 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-OBSERVACIONES IMPORTANTES:
-    la base de datos con mas departamentos es la de establecimientos educativos, que a
-    diferencia del padron de personas, incluye el departamento de ANTARTIDA en Tierra Del 
-    Fuego.Tambien en la tabla de centros culturales figura como departamento ciudad autonoma de buenos
-    aires en lugar de por cada comuna como en las tablas de padron de personas y de establecimientos
-    educativos, asi que agregue a "departamentos" una tupla que sea como la inclusion de todo, 
-    asi esta con id_prov = 2 e id_depto = 0 (como figura en centros culturales).
-    nota: esta incluido el departamento Antartida, como ahora las arme de otra forma habria que 
-    sacarlo con un where si se quiere.
+Laboratorio de datos - Verano 2025
+Trabajo Práctico N° 1 
+
+Integrantes:
+- Sebastian Ceffalotti - sebastian.ceffalotti@gmail.com
+- Aaron Cuellar - aaroncuellar2003@gmail.com
+- Rodrigo Coppa - rodrigo.coppa98@gmail.com
+
+Descripción:
+Este script realiza la lectura y limpieza de las fuentes de datos dadas, 
+ademas genera las consultas y visualizaciones pedidas.
+
+Detalles técnicos:
+- Lenguaje: Python
+- Librerías utilizadas: numpy, matplotlib, duckdb, pandas, seaborn y scikit-learn
+
+Notas adicionales:
+ejecutar el siguiente codigo en la terminal para verificar que tenga instalada las librerias usadas en ese script:
+pip install duckdb numpy pandas matplotlib seaborn scikit-learn
 """
 
 # %% IMPORTACION DE LIBRERIAS
 
 import duckdb as dd  
-import pandas as pd 
-import os
 import numpy as np
+import pandas as pd 
 import matplotlib.pyplot as plt
-from sklearn.metrics import r2_score
 import seaborn as sns
+from sklearn.metrics import r2_score
+import os
 
 #%% OBTENCION DE LAS RUTAS DE LOS ARCHIVOS A USAR
 
@@ -53,7 +63,7 @@ _rutas = {
 for nombre, ruta in _rutas.items():
     globals()[nombre] = pd.read_csv(ruta)
 
-# %% LECTURA DE LAS 3 TABLAS, ESTABLECIMIENTOS EDUCATIVOS, CENTROS CULTURALES Y PADRON DE PERSONAS
+# %% LECTURA DE LAS 3 FUENTES DE DATOS, ESTABLECIMIENTOS EDUCATIVOS, CENTROS CULTURALES Y PADRON DE PERSONAS
 
 _establecimientos_educativos_original = pd.read_excel(_ruta_ee, header=0, skiprows=6)
 _centros_culturales_original = pd.read_csv(_ruta_cc)
@@ -69,31 +79,6 @@ Centros_culturales = dd.sql("""
     SELECT ROW_NUMBER() OVER () AS id_cc, *
     FROM _centros_culturales_original;
 """).df()
-
-#%%
- # GQM DE LA TABLA POBLACION
-import pandas as pd
-
-# Cargar el archivo (ajustar la ruta según corresponda)
-
-df = pd.read_excel(_ruta_pp, usecols=[1,2], header=None, skiprows=13) # Ajustar 'skiprows' si hay encabezados
-df.columns = ["Edad", "Casos"]
-
-# Intentar convertir la primera columna a números, los valores no numéricos se convierten en NaN
-df["Edad"] = pd.to_numeric(df["Edad"], errors='coerce')
-
-# Contar filas donde la conversión falló (valores que no son números enteros)
-filas_no_numericas = df[df["Edad"].isna()]
-
-# Calcular el porcentaje de estas filas en el dataset
-total_filas = len(df)
-filas_no_numericas_count = len(filas_no_numericas)
-porcentaje_no_numericas = (filas_no_numericas_count / total_filas) * 100
-
-# Mostrar resultados
-print(f"Total de filas en el dataset: {total_filas}")
-print(f"Cantidad de filas donde la primera columna no es un número: {filas_no_numericas_count}")
-print(f"Porcentaje de filas afectadas: {porcentaje_no_numericas:.2f}%")
 
 #%% LIMPIEZA TABLA PADRON DE PERSONAS
 
@@ -117,17 +102,9 @@ _padron_personas = dd.sql(
     FROM _padron_personas
     WHERE LOWER(Edad) NOT IN ('nan', 'total', 'edad')
     """).df()
-#%%
+
 # relleno hacia abajo con el ultimo valor no nulo
 _padron_personas[["codigo_area", "nombre_departamento","mascara_para_borrar"]] = _padron_personas[["codigo_area", "nombre_departamento", "mascara_para_borrar"]].ffill()
-
-hola = dd.sql(
-       """
-       SELECT *
-       FROM _padron_personas
-       WHERE mascara_para_borrar IS NULL
-       """
-       ).df()
 
 #%%
 
@@ -176,7 +153,7 @@ ee_info = dd.sql(
     FROM ee_2
     """).df()
 
-#%%    CASE     
+#%% Tabla departamentos     
        
 Departamentos = dd.sql(
     """ 
@@ -250,7 +227,7 @@ ee_modalidades = dd.sql(
     """
 ).df()
 
-#%%
+#%% Tabla provincias
 Provincias = dd.sql(
     """
     SELECT DISTINCT id_prov, nombre
@@ -292,7 +269,7 @@ Centros_culturales = dd.sql(
     FROM primer_mail
     """).df()
     
-#%% GUARDO LAS TABLAS
+#%% GUARDADO DE TABLAS DINAMICAMENTE EN TABLASMODELO
 _carpeta_destino = os.path.join(os.path.dirname(os.path.abspath(__file__)), "TablasModelo")
 os.makedirs(_carpeta_destino, exist_ok = True)  # Crea la carpeta si no existe
 
@@ -311,9 +288,7 @@ for nombre_tabla, df in _tablas.items():
     df.to_csv(_ruta_del_csv, index = False)
     
     
-    
-    
-#%% VISUALIZACION 
+#%% ANALISIS DE DATOS 
 
 # CONSULTA I 
 
@@ -540,6 +515,7 @@ Consulta3 = dd.sql(
     pd.Departamento ASC;
     """
     ).df()
+
 #%% CONSULTA IV
 
 """
@@ -751,3 +727,31 @@ ax[1].grid(zorder=1)
 
 plt.tight_layout()
 plt.show()
+
+#%%  Tablas extra de ayuda
+
+#%%
+#GQM DE LA TABLA POBLACION
+
+# Cargar el archivo (ajustar la ruta según corresponda)
+
+df = pd.read_excel(_ruta_pp, usecols=[1,2], header=None, skiprows=13) # Ajustar 'skiprows' si hay encabezados
+df.columns = ["Edad", "Casos"]
+
+# Intentar convertir la primera columna a números, los valores no numéricos se convierten en NaN
+df["Edad"] = pd.to_numeric(df["Edad"], errors='coerce')
+
+# Contar filas donde la conversión falló (valores que no son números enteros)
+filas_no_numericas = df[df["Edad"].isna()]
+
+# Calcular el porcentaje de estas filas en el dataset
+total_filas = len(df)
+filas_no_numericas_count = len(filas_no_numericas)
+porcentaje_no_numericas = (filas_no_numericas_count / total_filas) * 100
+
+# Mostrar resultados
+print(f"Total de filas en el dataset: {total_filas}")
+print(f"Cantidad de filas donde la primera columna no es un número: {filas_no_numericas_count}")
+print(f"Porcentaje de filas afectadas: {porcentaje_no_numericas:.2f}%")
+
+
