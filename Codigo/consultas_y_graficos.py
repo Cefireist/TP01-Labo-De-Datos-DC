@@ -419,14 +419,47 @@ Consulta4 = dd.sql(
     """).df()
 
 
-#%% GRAFICOS
-
-
-#%% GRAFICO II
-
+#%% IMPORTAMOS MAS librerias
 import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.metrics import r2_score
+
+"""
+Cantidad de CC por provincia. Mostrarlos ordenados de manera decreciente 
+por dicha cantidad. 
+"""
+#%% GRAFICO I
+
+visualizacion1 = dd.sql(
+    """
+    SELECT 
+        p.nombre_provincia AS provincia,
+        COUNT(cc.id_cc) AS cantidad_cc,
+        FROM Centros_culturales AS cc
+        JOIN Provincias AS p ON cc.id_prov = p.id_prov
+        GROUP BY provincia
+        ORDER BY cantidad_cc DESC
+    """
+    ).df()
+
+# Grafico de barras horizontal
+plt.figure(figsize=(12, 6))
+plt.barh(visualizacion1["provincia"], visualizacion1["cantidad_cc"], color="steelblue")
+plt.xlabel("Cantidad de Centros Culturales")
+plt.ylabel("Provincia")
+plt.title("Cantidad de Centros Culturales por Provincia")
+plt.grid(True, axis='x', linestyle='--', alpha=0.7)
+plt.gca().invert_yaxis()  
+plt.show()
+
+
+# %% GRAFICO II
+
+"""
+Graficar la cantidad de EE de los departamentos en función de la población, 
+separando por nivel educativo y su correspondiente grupo etario (identificándolos por colores). 
+Se pueden basar en la primera consulta SQL para realizar este gráfico. 
+"""
 
 # y = mx + b
 def ajuste_lineal(x, y, color, label):
@@ -463,8 +496,8 @@ plt.ylabel("Cantidad de establecimientos educativos", fontsize = 16)
 plt.title("Cantidad de establecimientos educativos en funcion de la poblacion", fontsize = 16, fontweight = "bold")
 plt.legend(loc = "lower right", fontsize = 16)
 
-#%%
+#%% GRAFICO III
+
 
 #%%
 
-#%%
