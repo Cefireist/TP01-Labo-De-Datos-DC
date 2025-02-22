@@ -420,3 +420,51 @@ Consulta4 = dd.sql(
 
 
 #%% GRAFICOS
+
+
+#%% GRAFICO II
+
+import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.metrics import r2_score
+
+# y = mx + b
+def ajuste_lineal(x, y, color, label):
+    m, b = np.polyfit(x, y, deg=1)
+    x_recta = np.linspace(min(x), max(x), 1000)
+    y_pred = m * x_recta + b
+    
+    plt.scatter(x, y, marker=".", color = color, label = label, alpha = 0.75)
+    plt.plot(x_recta, y_pred, color = color)
+    
+    r2 = r2_score(y, m*x+b)
+    
+    print(f"r2 {label}: " + str(r2))
+    
+
+    
+poblacion_jardin = Consulta1["Poblacion_jardin"]
+cantidad_jardin = Consulta1["Jardines"]
+
+poblacion_primaria = Consulta1["Poblacion_primaria"]
+cantidad_primaria = Consulta1["Primarias"]
+
+poblacion_secundaria = Consulta1["Poblacion_secundaria"]
+cantidad_secundaria = Consulta1["Secundario"]
+
+fig, ax = plt.subplots(figsize = (12,7))
+
+ajuste_lineal(poblacion_jardin, cantidad_jardin, "red", "Jardin")
+ajuste_lineal(poblacion_primaria, cantidad_primaria, "green", "Primario")
+ajuste_lineal(poblacion_secundaria, cantidad_secundaria, "blue", "Secundario")
+
+plt.xlabel("Poblacion", fontsize = 14)
+plt.ylabel("Cantidad de establecimientos educativos", fontsize = 16)
+plt.title("Cantidad de establecimientos educativos en funcion de la poblacion", fontsize = 16, fontweight = "bold")
+plt.legend(loc = "lower right", fontsize = 16)
+
+#%%
+
+#%%
+
+#%%
