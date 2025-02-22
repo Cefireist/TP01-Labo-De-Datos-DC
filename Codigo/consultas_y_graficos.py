@@ -409,7 +409,7 @@ plt.ylabel("Cantidad de Establecimientos Educativos", fontsize=12)
 plt.xticks(rotation=90)  # Rotar etiquetas del eje x para mejor legibilidad
 plt.grid(True)
 plt.show()
-#%% GRAFICO IV VERSION 1
+#%% GRAFICO IV
 
 # por provincia obtener la cant de cc y ee cada 1000 habitantes
 
@@ -446,47 +446,30 @@ cantidad_eecc_cada_mil = dd.sql("""
                                 """).df()
 
 
-# grafico barras apiladas
-plt.figure(figsize=(12, 6))
 
-plt.bar(cantidad_eecc_cada_mil["nombre"], cantidad_eecc_cada_mil["cant_ee_cada_mil"], label="Establecimientos Educativos", color="royalblue")
-plt.bar(cantidad_eecc_cada_mil["nombre"], cantidad_eecc_cada_mil["cant_cc_cada_mil"], bottom=cantidad_eecc_cada_mil["cant_ee_cada_mil"], label="Centros Culturales", color="orange")
 
-plt.xlabel("Provincia")
-plt.ylabel("Cantidad cada 1000 habitantes")
-plt.title("Relación entre Centros Culturales y Establecimientos Educativos cada 1000 habitantes")
-plt.xticks(rotation=45, ha="right") 
-plt.legend()  
 
+fig, ax = plt.subplots(2, 1, figsize=(10, 12))
+
+# Primer scatter (cantidad de EE y CC por cada mil habitantes)
+ax[0].scatter(cantidad_eecc_cada_mil["nombre"], cantidad_eecc_cada_mil["cant_ee_cada_mil"], label="Establecimientos Educativos", color="royalblue", s=150, zorder=2)
+ax[0].scatter(cantidad_eecc_cada_mil["nombre"], cantidad_eecc_cada_mil["cant_cc_cada_mil"], label="Centros Culturales", color="orange", s=150, zorder=2)
+
+ax[0].set_ylabel("Cantidad cada 1000 habitantes") 
+ax[0].set_xlabel("Provincia")
+ax[0].set_xticklabels(cantidad_eecc_cada_mil["nombre"], rotation=60, ha="right")  
+ax[0].set_title("Cantidad de EE y CC cada 1000 habitantes por provincia")
+ax[0].legend()
+ax[0].grid(zorder=1)
+
+# Segundo scatter (relación EE/CC)
+ax[1].scatter(cantidad_eecc_cada_mil["nombre"],  cantidad_eecc_cada_mil["cant_ee_cada_mil"]/cantidad_eecc_cada_mil["cant_cc_cada_mil"], label="Cant EE/Cant CC por provincia", color="royalblue", s=150, zorder=2)
+
+ax[1].set_ylabel("Cant EE/Cant CC") 
+ax[1].set_xlabel("Provincia")
+ax[1].set_xticklabels(cantidad_eecc_cada_mil["nombre"], rotation=60, ha="right")  
+ax[1].set_title("Relación de EE y CC cada 1000 habitantes por provincia")
+ax[1].grid(zorder=1)
+
+plt.tight_layout()
 plt.show()
-
-
-
-#%% GRAFICO 4 VERSION 2
-"""
-Relación entre la cantidad de CC cada mil habitantes y de EE cada mil
-habitantes
-"""
-
-data = dd.sql(
-    """
-    SELECT Provincia, Departamento, 
-    (Cantidad_ee / Poblacion) * 1000 AS EE_cada_mil,
-    (Cantidad_cc / Poblacion) * 1000 AS CC_cada_mil
-    FROM Consulta3
-    WHERE Cantidad_ee IS NOT NULL AND Cantidad_cc IS NOT NULL
-    AND Poblacion IS NOT NULL;
-    """
-    ).df()
-
-
-plt.figure(figsize=(8, 6))
-sns.scatterplot(data = data, x ="EE_cada_mil", y="CC_cada_mil")
-
-plt.title("Relación entre CC cada mil habitantes y EE cada mil habitantes", fontsize=16)
-plt.xlabel("EE cada mil habitantes", fontsize = 14)
-plt.ylabel("CC cada mil habitantes", fontsize = 14)
-plt.grid(True)
-plt.show()
-
-#%%
