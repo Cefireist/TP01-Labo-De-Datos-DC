@@ -73,6 +73,37 @@ print(f"Total de filas en el dataset: {total_filas}")
 print(f"Cantidad de filas donde la primera columna no es un número: {filas_no_numericas_count}")
 print(f"Porcentaje de filas afectadas: {porcentaje_no_numericas:.2f}%")
 
+# GQM DE LA TABLA CENTROS CULTURALES
+
+
+
+# Total de registros en la tabla original
+total_registros = len(cc_info)
+
+# Filtrar solo registros con mail no nulo para las métricas
+cc_mails = cc_info[cc_info["Mail"].notna()]
+
+# Contar registros con múltiples direcciones de correo (más de un "@")
+correos_multiples = cc_mails[cc_mails["Mail"].str.count("@") > 1]
+cantidad_correos_multiples = len(correos_multiples)
+
+# Contar correos inválidos (sin "@" o con espacios internos o valores ambiguos)
+correos_invalidos = cc_mails[
+    (~cc_mails["Mail"].str.contains("@", na=False)) |  # No contiene "@"
+    (cc_mails["Mail"].str.strip().str.contains(r"\s", regex=True)) |  # Espacios internos
+    (cc_mails["Mail"].str.strip().isin(["s/d", "-"]))  # Valores ambiguos
+]
+cantidad_correos_invalidos = len(correos_invalidos)
+
+# Cálculo de porcentajes sobre el total de registros en la tabla original
+porcentaje_multiples = (cantidad_correos_multiples / total_registros) * 100
+porcentaje_invalidos = (cantidad_correos_invalidos / total_registros) * 100
+
+# Mostrar resultados
+print(f"Total de registros en la tabla: {total_registros}")
+print(f"Correos inválidos (sin '@', con espacios internos, o valores ambiguos): {cantidad_correos_invalidos} ({porcentaje_invalidos:.2f}%)")
+print(f"Correos con múltiples direcciones en una celda: {cantidad_correos_multiples} ({porcentaje_multiples:.2f}%)")
+
 #%% LIMPIEZA TABLA PADRON DE PERSONAS
 
 # se agregan columnas codigo_area y nombre_depto (pasando a mayusculas) para identificar 
@@ -99,13 +130,6 @@ _padron_personas = dd.sql(
 # relleno hacia abajo con el ultimo valor no nulo
 _padron_personas[["codigo_area", "nombre_departamento","mascara_para_borrar"]] = _padron_personas[["codigo_area", "nombre_departamento", "mascara_para_borrar"]].ffill()
 
-hola = dd.sql(
-       """
-       SELECT *
-       FROM _padron_personas
-       WHERE mascara_para_borrar IS NULL
-       """
-       ).df()
 
 #%%
 
