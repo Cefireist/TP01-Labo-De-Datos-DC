@@ -17,9 +17,6 @@ Detalles técnicos:
 - Lenguaje: Python
 - Librerías utilizadas: numpy, matplotlib, duckdb, pandas, seaborn y scikit-learn
 
-Notas adicionales:
-ejecutar el siguiente codigo en la terminal para verificar que tenga instalada las librerias usadas en ese script:
-pip install duckdb numpy pandas matplotlib seaborn scikit-learn
 """
 
 # %% IMPORTACION DE LIBRERIAS
@@ -32,15 +29,14 @@ import seaborn as sns
 from sklearn.metrics import r2_score
 import os
 
-#%% OBTENCION DE LAS RUTAS DE LOS ARCHIVOS A USAR
+#%% OBTENCION DE LAS RUTAS DE LOS ARCHIVOS ORIGINALES A USAR
 
-# obtenemos la ruta del directorio donde se esta ejecutando este codigo
+# obtenemos la ruta del directorio donde se esta ejecutando este codigo, usamos OS para que
+# sea independiente de donde se abra
 _ruta_actual = os.path.dirname(__file__)
 
 # ruta a la carpeta TablasOriginales que es donde estan las tablas a usar
 _ruta_tablas_originales = os.path.join(_ruta_actual, 'TablasOriginales')
-# Ruta a la carpeta TablasModelo
-_ruta_tablas_modelo = os.path.join(_ruta_actual, 'TablasModelo')
 
 # rutas de los 3 archivos, usamos esta libreria para que el codigo encuentre los archivos siempre
 _ruta_ee = os.path.join(_ruta_tablas_originales, 'padron_establecimientos_educativos_2022.xlsx')
@@ -48,44 +44,25 @@ _ruta_cc = os.path.join(_ruta_tablas_originales, 'centros_culturales_2022.csv')
 _ruta_pp = os.path.join(_ruta_tablas_originales, 'padron_poblacion_2022.xlsX')
 
 
-# Diccionario con las rutas de los archivos CSV
-_rutas = {
-    "Centros_culturales": os.path.join(_ruta_tablas_modelo, 'Centros_culturales.csv'),
-    "Poblacion": os.path.join(_ruta_tablas_modelo, 'Poblacion.csv'),
-    "Establecimientos_educativos": os.path.join(_ruta_tablas_modelo, 'Establecimientos_educativos.csv'),
-    "Modalidades": os.path.join(_ruta_tablas_modelo, 'Modalidades.csv'), 
-    "Departamentos": os.path.join(_ruta_tablas_modelo, 'Departamentos.csv'),
-    "Provincias": os.path.join(_ruta_tablas_modelo, 'Provincias.csv'),
-    "ee_modalidades": os.path.join(_ruta_tablas_modelo, 'ee_modalidades.csv')
-}
-
-# guardo en una variable el csv con el nombre, para eso uso globals que genera una variable dinamicamente 
-for nombre, ruta in _rutas.items():
-    globals()[nombre] = pd.read_csv(ruta)
-
 # %% LECTURA DE LAS 3 FUENTES DE DATOS, ESTABLECIMIENTOS EDUCATIVOS, CENTROS CULTURALES Y PADRON DE PERSONAS
 
-establecimientos_educativos_original = pd.read_excel(_ruta_ee, header=0, skiprows=6)
+_establecimientos_educativos_original = pd.read_excel(_ruta_ee, header=0, skiprows=6)
 _centros_culturales_original = pd.read_csv(_ruta_cc)
 _padron_personas = pd.read_excel(_ruta_pp, usecols=[1,2], header=None, skiprows=13)
 _padron_personas.columns = ["Edad", "Casos"]
 
-
-""" Le agrego una clave primaria a centros_culturales, no encontre combinacion 
-de atributos suficientemente pequena como para que sea la clave primaria asi que le 
-agregue un indice
-"""
+# Le agregamos una clave primaria numerica a centros_culturales
 Centros_culturales = dd.sql("""
     SELECT ROW_NUMBER() OVER () AS id_cc, *
     FROM _centros_culturales_original;
 """).df()
 
-
-
 #%% LIMPIEZA TABLA PADRON DE PERSONAS
 
 # se agregan columnas codigo_area y nombre_depto (pasando a mayusculas) para identificar 
-# cada departamento, y se borran valores que no sirven
+# cada departamento, y se borran valores que no sirven. ademas se crea una mascara para rellenar
+# con valores. la que es de resumen es porque al final del archivo hay una tabla resumen que da toda
+# la info del pais junta, la queremos eliminar.
 _padron_personas = dd.sql(
     """
     SELECT *,
@@ -105,15 +82,15 @@ _padron_personas = dd.sql(
     WHERE LOWER(Edad) NOT IN ('nan', 'total', 'edad')
     """).df()
 
-# relleno hacia abajo con el ultimo valor no nulo
+# relleno hacia abajo con el ultimo valor no nulo usando forward fill. 
 _padron_personas[["codigo_area", "nombre_departamento","mascara_para_borrar"]] = _padron_personas[["codigo_area", "nombre_departamento", "mascara_para_borrar"]].ffill()
 
 #%%
 
-# GUARDAMOS LA TABLA PERSONAS CON LOS ATRIBUTOS: edad, número de casos, id_prov, id_depto
-# eliminacion de filas usadas para el forward fill, y separo el codigo de area en id_prov 
-# e id_depto el CAST sirve para cambiar el tipo de variable, pasamos de string a integer
-# cambio el id de Ushuaia y RIO GRANDE porque estan distintos a la otra tabla
+# eliminamos filas usadas para el forward fill de pandas y los datos asociados a resumen,
+# separamos el codigo de area en id_prov e id_depto, el CAST sirve para cambiar el tipo de
+# variable, pasamos de string a integer
+# se cambia el id de Ushuaia y Rio Grande porque estan distintos a las tablas de CC y EE
 Poblacion = dd.sql(
     """
     WITH pp AS (
@@ -123,20 +100,37 @@ Poblacion = dd.sql(
     CAST(SUBSTRING(codigo_area, 3, 3) AS INTEGER) AS id_depto
     FROM _padron_personas
     WHERE Edad NOT LIKE 'AREA%' AND mascara_para_borrar IS NULL)
-    SELECT id_prov, id_depto, Edad, Casos 
+    
+    SELECT id_prov, 
+    CASE 
+        WHEN id_prov = 94 AND id_depto = 8 THEN 7
+        WHEN id_prov = 94 AND id_depto = 15 THEN 14
+        ELSE id_depto
+    END AS id_depto, Edad, Casos 
     FROM pp
-    """
-    ).df()
+    """).df()
 
 
-#%% Tabla ee_info guarda mucha info relacionada a establecimientos_educativos y luego voy separando
+#%% tabla Tipos_de_establecimientos
 
+# Asociamos a cada tipo de establecimiento un id numerico, y guardamos un dataframe
+datos_establecimientos = {
+    "id_tipo_establecimiento": [0,1,2,3,4],
+    "tipo_establecimiento": ["Jardin_maternal", "Jardin_infantes", "Primario", "Secundario", "Secundario_tecnico"]
+}
+
+Tipos_de_establecimientos = pd.DataFrame(datos_establecimientos)
+
+
+# guardamos una tabla con la informacion para armar Provincias, Departamentos, 
+# Establecimientos_educativos y ee_tipo_establecimiento
 ee_info = dd.sql(
     """
     WITH ee_2 AS (
-        SELECT CAST("Código de localidad" AS VARCHAR) AS cod_loc, 
+        SELECT CAST("Código de localidad" AS VARCHAR) AS cod_loc,
         UPPER(Jurisdicción) AS nombre, UPPER(Departamento) AS nombre_departamento, *
-        FROM _establecimientos_educativos_original)
+        FROM _establecimientos_educativos_original
+        WHERE Común = '1')
     
     SELECT Cueanexo, nombre, nombre_departamento, Ámbito, Sector,
         "Nivel inicial - Jardín maternal" AS Jardin_maternal,
@@ -154,90 +148,72 @@ ee_info = dd.sql(
         END AS id_depto
     FROM ee_2
     """).df()
+#%% tabla ee_tipo_establecimiento
 
-#%% Tabla departamentos     
-       
-Departamentos = dd.sql(
-    """ 
-    SELECT DISTINCT id_prov,  
-    CASE 
-        WHEN id_prov = 94 AND id_depto = 7 THEN 8
-        WHEN id_prov = 94 AND id_depto = 14 THEN 15
-        ELSE id_depto
-        END AS id_depto, 
-        nombre_departamento AS nombre
-    FROM ee_info
-    UNION 
-    SELECT DISTINCT ID_PROV, CAST(SUBSTRING(CAST(ID_DEPTO AS VARCHAR), 2, 4) AS INTEGER) AS id_depto, Departamento
-    FROM Centros_culturales
-    WHERE ID_PROV = 2
+# teniendo en cuenta el id separamos las columnas de cada tipo de establecimiento educativo
+
+ee_tipo_establecimiento = dd.sql(
     """
-    ).df()
-#%%
-
-# tabla Modalidades
-datos_modalidades = {
-    "id_mod": [0,1,2,3,4],
-    "modalidad": ["Jardin_maternal", "Jardin_infantes", "Primario", "Secundario", "Secundario_tecnico"]
-}
-# tipo_establecimiento -> modalidad  ; id_tipo_establecimiento_educativo -> Modalidades
-
-
-Modalidades = pd.DataFrame(datos_modalidades)
-
-# Separo para cada cueanexo si tiene uno o varios tipos de establecimiento, asi no hay tantos valores NULL
-# La clave primaria de Establecimientos_educativos es Cueanexo junto a id_tipo_establecimiento
-Establecimientos_educativos = dd.sql(
-    """
-    SELECT Cueanexo, id_prov, id_depto, Ámbito, Sector
-    FROM ee_info
-    """
-).df()
-
-
-#%% tabla ee_modalidades
-
-ee_modalidades = dd.sql(
-    """
-    SELECT Cueanexo, 0 AS id_modalidad
+    SELECT Cueanexo, 0 AS id_tipo_establecimiento
     FROM ee_info
     WHERE Jardin_maternal = '1'
 
     UNION 
     
-    SELECT Cueanexo, 1 AS id_modalidad
+    SELECT Cueanexo, 1 AS id_tipo_establecimiento
     FROM ee_info
     WHERE Jardin_infantes = '1'
 
     UNION
     
-    SELECT Cueanexo, 2 AS id_modalidad
+    SELECT Cueanexo, 2 AS id_tipo_establecimiento
     FROM ee_info
     WHERE Primario = '1'
 
     UNION
     
-    SELECT Cueanexo, 3 AS id_modalidad
+    SELECT Cueanexo, 3 AS id_tipo_establecimiento
     FROM ee_info
     WHERE Secundario = '1'
 
     UNION
     
-    SELECT Cueanexo, 4 AS id_modalidad
+    SELECT Cueanexo, 4 AS id_tipo_establecimiento
     FROM ee_info
     WHERE Secundario_tecnico = '1';
+    """).df()
+#%% Tabla establecimientos_educativos, seleccionamos atributos de ee_info
+
+Establecimientos_educativos = dd.sql(
     """
-).df()
+    SELECT Cueanexo, id_prov, id_depto, Ámbito AS ambito, Sector AS sector
+    FROM ee_info
+    """).df()
+
+#%% Tabla departamentos, seleccionamos los atributos de ee_info
+
+# Agregamos todo caba como un departamento tambien teniendo el cuenta la tabla de CC
+Departamentos = dd.sql(
+    """ 
+    SELECT DISTINCT id_prov, id_depto, nombre_departamento AS nombre
+    FROM ee_info
+    UNION 
+    SELECT DISTINCT ID_PROV, 
+    CAST(SUBSTRING(CAST(ID_DEPTO AS VARCHAR), 2, 4) AS INTEGER) AS id_depto, Departamento
+    FROM Centros_culturales
+    WHERE ID_PROV = 2
+    """).df()
 
 #%% Tabla provincias
 Provincias = dd.sql(
     """
     SELECT DISTINCT id_prov, nombre
     FROM ee_info
-    """
-    ).df()
+    """).df()
+
 
 #%% Tabla cc_info guarda info relacionada a centros_culturales para armar otras tablas
+
 cc_info = dd.sql(
     """
     WITH cc_info AS (
@@ -259,10 +235,11 @@ Centros_culturales = dd.sql(
     WITH primer_mail AS (
         SELECT id_cc, id_prov, id_depto, Capacidad, 
                CASE WHEN ',' IN Mail
-                 THEN SPLIT_PART(TRIM(Mail), ',', 1)
-                 ELSE SPLIT_PART(TRIM(Mail), ' ', 1) 
+                THEN SPLIT_PART(TRIM(Mail), ',', 1)
+                ELSE SPLIT_PART(TRIM(Mail), ' ', 1) 
                END AS Mail
         FROM cc_info)
+    
     SELECT id_cc, id_prov, id_depto, Capacidad,
     CASE WHEN '@' IN Mail
     THEN REPLACE(REPLACE(Mail,' ', ''), ',', '')
@@ -270,8 +247,9 @@ Centros_culturales = dd.sql(
     END AS Mail
     FROM primer_mail
     """).df()
-    
-#%% GUARDADO DE TABLAS DINAMICAMENTE EN TABLASMODELO
+
+#%% GUARDADO DE TABLAS EN TABLASMODELO
+
 _carpeta_destino = os.path.join(os.path.dirname(os.path.abspath(__file__)), "TablasModelo")
 os.makedirs(_carpeta_destino, exist_ok = True)  # Crea la carpeta si no existe
 
@@ -279,21 +257,38 @@ _tablas = {
     "Poblacion": Poblacion,
     "Centros_culturales": Centros_culturales,
     "Establecimientos_educativos": Establecimientos_educativos,
-    "Modalidades": Modalidades,
+    "Tipos_de_establecimientos": Tipos_de_establecimientos,
     "Departamentos": Departamentos,
     "Provincias": Provincias,
-    "ee_modalidades": ee_modalidades
+    "ee_tipo_establecimiento": ee_tipo_establecimiento
 }
 
 for nombre_tabla, df in _tablas.items():
     _ruta_del_csv = os.path.join(_carpeta_destino, f"{nombre_tabla}.csv")
     df.to_csv(_ruta_del_csv, index = False)
     
+#%% LECTURA DE LAS TABLAS MODELO
+
+_ruta_tablas_modelo = os.path.join(_ruta_actual, 'TablasModelo')
+# Diccionario con las rutas de los archivos CSV
+_rutas = {
+    "Centros_culturales": os.path.join(_ruta_tablas_modelo, 'Centros_culturales.csv'),
+    "Poblacion": os.path.join(_ruta_tablas_modelo, 'Poblacion.csv'),
+    "Establecimientos_educativos": os.path.join(_ruta_tablas_modelo, 'Establecimientos_educativos.csv'),
+    "Tipos_de_establecimientos": os.path.join(_ruta_tablas_modelo, 'Tipos_de_establecimientos.csv'), 
+    "Departamentos": os.path.join(_ruta_tablas_modelo, 'Departamentos.csv'),
+    "Provincias": os.path.join(_ruta_tablas_modelo, 'Provincias.csv'),
+    "ee_tipo_establecimiento": os.path.join(_ruta_tablas_modelo, 'ee_tipo_establecimiento.csv')
+}
+
+# guardo en una variable el csv con el nombre, para eso uso globals que genera una variable dinamicamente 
+for nombre, ruta in _rutas.items():
+    globals()[nombre] = pd.read_csv(ruta)
     
-#%% ANALISIS DE DATOS 
-
+#%% ANALISIS DE DATOS
+ 
+#%%
 # CONSULTA I 
-
 """
 Para cada departamento informar la provincia, cantidad de EE de cada nivel educativo, 
 considerando solamente la modalidad común, y cantidad de habitantes por edad según los niveles educativos. 
@@ -302,37 +297,20 @@ descendente por cantidad de escuelas primarias.
 """
 
 """
-Provincias donde el primario dura 6 años:
-Formosa, Tucumán, Catamarca, San Juan,
-San Luis, Córdoba, Corrientes, 
-Entre Ríos, La Pampa, Buenos Aires, 
-Chubut y Tierra del Fuego. 
+Provincias donde el primario dura 6 años: Formosa, Tucumán, Catamarca, San Juan, San Luis,
+Córdoba, Corrientes, Entre Ríos, La Pampa, Buenos Aires, Chubut y Tierra del Fuego. 
 
-Provincias donde el primario dura 7 años:
-Río Negro, Neuquén, Santa Cruz,
-Mendoza, Santa Fe, La Rioja, 
-Santiago del Estero, Chaco, Misiones, 
-Salta, Jujuy, pero tambien en la Ciudad Autónoma de Buenos Aires.
+Provincias donde el primario dura 7 años: Río Negro, Neuquén, Santa Cruz, Mendoza, Santa Fe, La Rioja, 
+Santiago del Estero, Chaco, Misiones, Salta, Jujuy, pero tambien en la Ciudad Autónoma de Buenos Aires.
+
+En donde el primario dura 6 anios el secundario dura 5
 """
 
-"""
-Para cada departamento informar la provincia, cantidad de EE de cada nivel
-educativo, considerando solamente la modalidad común, y cantidad de
-habitantes por edad según los niveles educativos. El orden del reporte debe
-ser alfabético por provincia y dentro de las provincias, descendente por
-cantidad de escuelas primarias.
-"""
-
-"""
-Para cada departamento informar la provincia, cantidad de EE de cada nivel
-educativo, considerando solamente la modalidad común, y cantidad de
-habitantes por edad según los niveles educativos. El orden del reporte debe
-ser alfabético por provincia y dentro de las provincias, descendente por
-cantidad de escuelas primarias.
-"""
+# Guardamos los id de la provincias segun la duracion del primario de 6 o 7 annios
 primario6 = (34,90,10,70,74,14,18,30,42,6,26,94)
 primario7 = (62,58,78,50,82,46,86,22,54,66,38,2)
 
+# Guardamos en Poblacion_jardin a las personas entre 0 y 5 anios, incluyendo jardin maternal y de infantes
 Poblacion_jardin = dd.sql(
             """
             SELECT id_prov, id_depto, SUM(Casos) AS Poblacion_jardin
@@ -340,7 +318,8 @@ Poblacion_jardin = dd.sql(
             WHERE Edad <= 5
             GROUP BY id_prov, id_depto
             """).df()
-            
+
+# Guardamos en Poblacion_primaria las personas en edad de primaria teniendo en cuenta la provincia
 Poblacion_primaria = dd.sql(
             f"""
             WITH primario6 AS (
@@ -361,44 +340,51 @@ Poblacion_primaria = dd.sql(
             FROM primario7 
             """).df()
             
+# Guardamos en Poblacion secundaria la cantidad de personas en edad de seduncaria, teniendo en cuenta
+# las provincias, pero incluyendo tambien la gente en edad para las escuelas tecnicas (duran 1 anio mas)
 Poblacion_secundaria = dd.sql(
             f"""
             WITH secundario6 AS(
             SELECT id_prov, id_depto, SUM(Casos) AS Poblacion_secundaria
             FROM Poblacion
-            WHERE Edad > 12 AND Edad <= 18 AND id_prov IN {primario6}
+            WHERE Edad > 12 AND Edad <= 19 AND id_prov IN {primario6}
             GROUP BY id_prov, id_depto),
             
-            secundario7 AS (SELECT id_prov, id_depto, SUM(Casos) AS Poblacion_secundaria
+            secundario5 AS (SELECT id_prov, id_depto, SUM(Casos) AS Poblacion_secundaria
             FROM Poblacion
-            WHERE Edad > 13 AND Edad <= 18 AND id_prov IN {primario7}
+            WHERE Edad > 13 AND Edad <= 19 AND id_prov IN {primario7}
             GROUP BY id_prov, id_depto)
             
             SELECT *
             FROM secundario6
             UNION
             SELECT *
-            FROM secundario7
+            FROM secundario5
             """
             ).df()
 
+# Se guarda en Cantidad_ee cuantos establecimientos educativos hay en cada departamento, se incluyen
+# TODOS los ee, incluso aquellos en los que no hay ningun establecimiento en modalidad comun (se cuenta por
+# cueanexo)
 Cantidad_ee = dd.sql(
     """
     WITH Conteo AS (
-    SELECT ee.id_prov, ee.id_depto, em.id_modalidad, COUNT(*) AS Cantidad
+    SELECT ee.id_prov, ee.id_depto, ete.id_tipo_establecimiento, COUNT(*) AS Cantidad
     FROM Establecimientos_educativos AS ee
-    INNER JOIN ee_modalidades AS em ON ee.Cueanexo = em.Cueanexo
-    GROUP BY id_prov, id_depto, id_modalidad
-    ORDER BY id_prov, id_depto, id_modalidad)
+    INNER JOIN ee_tipo_establecimiento AS ete 
+    ON ee.Cueanexo = ete.Cueanexo
+    GROUP BY id_prov, id_depto, id_tipo_establecimiento
+    ORDER BY id_prov, id_depto, id_tipo_establecimiento)
     
     SELECT id_prov, id_depto,
-    SUM(CASE WHEN id_modalidad IN (0, 1) THEN Cantidad ELSE 0 END) AS Jardines,
-    SUM(CASE WHEN id_modalidad = 2 THEN Cantidad ELSE 0 END) AS Primarias,
-    SUM(CASE WHEN id_modalidad IN (3, 4) THEN Cantidad ELSE 0 END) AS Secundario
+    SUM(CASE WHEN id_tipo_establecimiento IN (0, 1) THEN Cantidad ELSE 0 END) AS Jardines,
+    SUM(CASE WHEN id_tipo_establecimiento = 2 THEN Cantidad ELSE 0 END) AS Primarias,
+    SUM(CASE WHEN id_tipo_establecimiento IN (3, 4) THEN Cantidad ELSE 0 END) AS Secundario
     FROM Conteo
     GROUP BY id_prov, id_depto
     """).df()
 
+# Se juntan los datos de las tablas anteriores y se ordena de acuerdo a la consigna
 Consulta1 = dd.sql(
     """
     WITH prov_depto AS (
@@ -424,7 +410,7 @@ Consulta1 = dd.sql(
     ON pd.id_prov = pob.id_prov AND pd.id_depto = pob.id_depto
     INNER JOIN Cantidad_ee AS ce
     ON pd.id_prov = ce.id_prov AND pd.id_depto = ce.id_depto
-    
+    ORDER BY Provincia ASC, Primarias DESC
     """).df()
 
 #%% Consulta II
@@ -436,6 +422,8 @@ por provincia y dentro de las provincias, descendente por cantidad de CC de
 dicha capacidad.
 """
 
+# Se cuentan para cada departamento cuantos CC hay con capacidad mayor a 100, luego se hace un 
+# Inner join para obtener el nombre de la provincia y departamento cuando se cumple la condicion
 Consulta2 = dd.sql(
     """
     WITH a AS (
@@ -443,12 +431,13 @@ Consulta2 = dd.sql(
     FROM Centros_culturales
     WHERE Capacidad > 100
     GROUP BY id_prov, id_depto)
-    SELECT p.nombre, d.nombre, a.Cantidad_mayor_100
+    
+    SELECT p.nombre AS Provincia, d.nombre AS Departamento, a.Cantidad_mayor_100
     FROM a 
     INNER JOIN Provincias AS p
     ON p.id_prov = a.id_prov
     INNER JOIN Departamentos AS d
-    ON d.id_depto = a.id_depto
+    ON d.id_depto = a.id_depto AND d.id_prov = a.id_prov
     GROUP BY p.nombre, d.nombre, Cantidad_mayor_100
     ORDER BY p.nombre ASC, Cantidad_mayor_100 DESC
     """
@@ -463,14 +452,16 @@ descendente, cantidad CC descendente, nombre de provincia ascendente y
 nombre de departamento ascendente. No omitir casos sin CC o EE.
 """
 
-
+# Guardamos la cantidad de CC por cada departamento
 Cantidad_cc = dd.sql(
         """
         SELECT id_prov, id_depto, COUNT(*) AS Cantidad_cc
         FROM Centros_culturales
         GROUP BY id_prov, id_depto
         """).df()
-
+        
+# Guardamos la cantidad de EE por cada depto, tomamos cada comuna de caba y caba completo 
+# ya que dec entros culturales no hay info por comunas
 Cantidad_ee = dd.sql(
     """
     SELECT id_prov, 0 AS id_depto, COUNT(DISTINCT Cueanexo) AS Cantidad_ee
@@ -482,7 +473,8 @@ Cantidad_ee = dd.sql(
     FROM Establecimientos_educativos
     GROUP BY id_prov, id_depto
     """).df()
-    
+
+# Guardamos la cantidad de Poblacion por cada depto, tomamos cada comuna de caba y caba completo 
 Poblacion_total = dd.sql(
     """
     SELECT id_prov, 0 AS id_depto, SUM(Casos) AS Personas
@@ -496,6 +488,8 @@ Poblacion_total = dd.sql(
     """
     ).df()
 
+# Hacemos una tabla temporal prov_depto, con la que hacemos left join ya que es
+# la mas completa de todas
 Consulta3 = dd.sql(
     """
     WITH prov_depto AS (
@@ -524,7 +518,14 @@ Consulta3 = dd.sql(
 Para cada departamento, indicar provincia y qué dominios de mail se usan
 más para los CC.
 """
-# EL dominio de un mail es todo lo que hay despues del arroba @
+
+"""
+EL dominio de un mail es todo lo que hay despues del arroba @, ademas no se distingue entre
+mayusculas y minusculas. Buscamos el @, separamos la cadena y nos quedamos con la parte del
+dominio, calculamos la frecuencia en cada departamento, vemos cual es la maxima en cada departamento
+y luego hacemos un inner join, se obtiene el dominio mas frecuente y en caso de empate se muestran todos.
+Ademas se quitan los null
+"""
 Consulta4 = dd.sql(
     """
     WITH Dominios AS (
@@ -591,6 +592,11 @@ separando por nivel educativo y su correspondiente grupo etario (identificándol
 Se pueden basar en la primera consulta SQL para realizar este gráfico. 
 """
 
+"""
+Se hace un plot de la cantidad de EE en funcion de la poblacion, cada punto representa un
+departamento, y el color el nivel educativo. se grafica ademas la recta que mejor aproxima
+para ver un poco la tendencia
+"""
 # y = mx + b
 def ajuste_lineal(x, y, color, label, ax):
     m, b = np.polyfit(x, y, deg=1)
@@ -642,6 +648,10 @@ plt.show()
 
 #%% GRAFICO III
 
+"""
+para cada provincia, se esta calculando en base a sus departamentos la mediana 
+de cantidad de EE.
+"""
 datos = dd.sql(
     """
     SELECT DISTINCT p.nombre, id_depto, COUNT(*) AS Cantidad
@@ -653,7 +663,7 @@ datos = dd.sql(
 
 medianas = datos.groupby("nombre")["Cantidad"].median()
 medianas_ordenadas = medianas.sort_values()
-
+# saco los indices para ordenar con medianas
 indice = medianas_ordenadas.index
 
 plt.figure(figsize=(10, 6))
@@ -662,7 +672,7 @@ sns.boxplot(data=datos, x="nombre", y="Cantidad", order = indice, color = "light
 plt.title("Cantidad de EE por Departamento en cada Provincia", fontsize=16)
 plt.xlabel("Provincia", fontsize=12)
 plt.ylabel("Cantidad de Establecimientos Educativos", fontsize=12)
-plt.xticks(rotation=90)  # Rotar etiquetas del eje x para mejor legibilidad
+plt.xticks(rotation=90) 
 plt.grid(True)
 plt.show()
 #%% GRAFICO IV
@@ -693,16 +703,14 @@ ee_por_provincia = dd.sql("""
 
 # armo tabla con nombre provincia y cantidad de ee y cc cada mil habitantes 
 cantidad_eecc_cada_mil = dd.sql("""
-                                 SELECT p.id_prov, p.nombre, ((ccp.cantidad*1000) / ppp.cantidad) AS cant_cc_cada_mil, ((eep.cantidad*1000) / ppp.cantidad) AS cant_ee_cada_mil
-                                 FROM Provincias p
-                                 INNER JOIN cc_por_provincia ccp ON ccp.id_prov = p.id_prov
-                                 INNER JOIN poblacion_por_provincia ppp ON ppp.id_prov = p.id_prov 
-                                 INNER JOIN ee_por_provincia eep ON eep.id_prov = p.id_prov
-                                 ORDER BY cant_ee_cada_mil DESC
-                                """).df()
-
-
-
+     SELECT p.id_prov, p.nombre, ((ccp.cantidad*1000) / ppp.cantidad) AS cant_cc_cada_mil, 
+     ((eep.cantidad*1000) / ppp.cantidad) AS cant_ee_cada_mil
+     FROM Provincias p
+     INNER JOIN cc_por_provincia ccp ON ccp.id_prov = p.id_prov
+     INNER JOIN poblacion_por_provincia ppp ON ppp.id_prov = p.id_prov 
+     INNER JOIN ee_por_provincia eep ON eep.id_prov = p.id_prov
+     ORDER BY cant_ee_cada_mil DESC
+     """).df()
 
 
 fig, ax = plt.subplots(2, 1, figsize=(10, 12))
@@ -733,52 +741,51 @@ plt.show()
 #%%  Tablas extra de ayuda
 
 
-#%%
+#%% ANEXO GQM
+
  # GQM DE LA TABLA POBLACION
 import pandas as pd
 
-# Cargar el archivo (ajustar la ruta según corresponda)
 
-df = pd.read_excel(_ruta_pp, usecols=[1,2], header=None, skiprows=13) # Ajustar 'skiprows' si hay encabezados
+df = pd.read_excel(_ruta_pp, usecols=[1,2], header=None, skiprows=13) 
 df.columns = ["Edad", "Casos"]
 
-# Intentar convertir la primera columna a números, los valores no numéricos se convierten en NaN
+# convertimos en numeros la primera columna, si no es un numero entonces queda null
 df["Edad"] = pd.to_numeric(df["Edad"], errors='coerce')
 
-# Contar filas donde la conversión falló (valores que no son números enteros)
+# contamos las filas donde no hay numeros,que son las filas delimitadoras
 filas_no_numericas = df[df["Edad"].isna()]
 
-# Calcular el porcentaje de estas filas en el dataset
+# calculamos el porcentaje
 total_filas = len(df)
 filas_no_numericas_count = len(filas_no_numericas)
 porcentaje_no_numericas = (filas_no_numericas_count / total_filas) * 100
 
-# Mostrar resultados
-print(f"Total de filas en el dataset: {total_filas}")
+# imprimimos resultados
+print(f"Total de filas en la tabla: {total_filas}")
 print(f"Cantidad de filas donde la primera columna no es un número: {filas_no_numericas_count}")
-print(f"Porcentaje de filas afectadas: {porcentaje_no_numericas:.2f}%")
+print(f"Porcentaje de filas delimitadoras: {porcentaje_no_numericas:.2f}%")
 
 #%%
 # GQM DE LA TABLA CENTROS CULTURALES
 
-
-
-# Total de registros en la tabla original
+# cantidad de tuplas en cc_info
 total_registros = len(cc_info)
 
-# Filtrar solo registros con mail no nulo para las métricas
+# nos quedamos con las filas sin null para contar
 cc_mails = cc_info[cc_info["Mail"].notna()]
 
-# Contar registros con múltiples direcciones de correo (más de un "@")
+# contamos las celdas con múltiples direcciones de correo (es decir con mas de un arroba)
 correos_multiples = cc_mails[cc_mails["Mail"].str.count("@") > 1]
 cantidad_correos_multiples = len(correos_multiples)
 
-# Contar correos inválidos (sin "@" o con espacios internos o valores ambiguos)
+# contamos correos inválidos, es decir sin arroba (incluye los que tienen valores ambiguos)
+# o con espacios internos
 correos_invalidos = cc_mails[
-    (~cc_mails["Mail"].str.contains("@", na=False)) |  # No contiene "@"
-    (cc_mails["Mail"].str.strip().str.contains(r"\s", regex=True)) |  # Espacios internos
-    (cc_mails["Mail"].str.strip().isin(["s/d", "-"]))  # Valores ambiguos
+    (cc_mails["Mail"].str.contains(" ", na=False)) |  # Tiene espacios internos
+    (cc_mails["Mail"].str.contains("@", na=False) == False)  # No contiene "@"
 ]
+
 cantidad_correos_invalidos = len(correos_invalidos)
 
 # Cálculo de porcentajes sobre el total de registros en la tabla original
@@ -786,25 +793,24 @@ porcentaje_multiples = (cantidad_correos_multiples / total_registros) * 100
 porcentaje_invalidos = (cantidad_correos_invalidos / total_registros) * 100
 
 # Mostrar resultados
-print(f"Total de registros en la tabla: {total_registros}")
-print(f"Correos inválidos (sin '@', con espacios internos, o valores ambiguos): {cantidad_correos_invalidos} ({porcentaje_invalidos:.2f}%)")
-print(f"Correos con múltiples direcciones en una celda: {cantidad_correos_multiples} ({porcentaje_multiples:.2f}%)")
+print(f"Total de  tuplas en la tabla: {total_registros}")
+print(f"Porcentaje de correos invalidos: {cantidad_correos_invalidos} ({porcentaje_invalidos:.2f}%)")
+print(f"Porcentaje de correos multiples: {cantidad_correos_multiples} ({porcentaje_multiples:.2f}%)")
 
 #%% GQM de la tabla establecimientos educativos
 
 
-
-# Contar los valores nulos en las columnas que has decidido separar
+# seleccionamos las columnas en donde vamos a contar "no unos"
 columnas_interes = ['Jardin_maternal', 'Jardin_infantes', 'Primario', 'Secundario', 'Secundario_tecnico']
 
-# Contar cuántas veces el valor NO es "1"
+# Contamos cuantas veces el valor no es '1'
 total_no_unos = (ee_info[columnas_interes] != '1').sum().sum()
 
-# Calcular el porcentaje de "no unos" sobre el total de datos esperados
+# calculamos el porcentaje de no unos sobre el total de datos (son 5 columnas)
 porcentaje_no_unos = total_no_unos / (5 * len(ee_info))
 
 # Imprimir resultado
-print(f'Porcentaje de valores distintos de 1: {porcentaje_no_unos:.2%}')
+print(f'Porcentaje de valores no unos: {porcentaje_no_unos:.2%}')
 
 
 
