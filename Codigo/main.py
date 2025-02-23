@@ -603,12 +603,13 @@ def ajuste_lineal(x, y, color, label, ax):
     x_recta = np.linspace(min(x), max(x), 1000)
     y_pred = m * x_recta + b
     
-    ax.scatter(x, y, marker=".", color=color, label=label, alpha=0.75)
+    r2 = r2_score(y, m*x+b)
+    print(f"r2 {label}: {r2:.2f}")
+    
+    ax.scatter(x, y, marker=".", color=color, label=f"{label}: $R^2 = $ {r2:.2f}", alpha=0.75)
     ax.plot(x_recta, y_pred, color=color, lw=4)
     
-    r2 = r2_score(y, m*x+b)
-    
-    print(f"r2 {label}: " + str(r2))
+
     
 
 poblacion_jardin = Consulta1["Poblacion_jardin"]
