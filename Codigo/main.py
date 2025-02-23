@@ -710,30 +710,32 @@ cantidad_eecc_cada_mil = dd.sql("""
      INNER JOIN cc_por_provincia ccp ON ccp.id_prov = p.id_prov
      INNER JOIN poblacion_por_provincia ppp ON ppp.id_prov = p.id_prov 
      INNER JOIN ee_por_provincia eep ON eep.id_prov = p.id_prov
-     ORDER BY cant_ee_cada_mil DESC
      """).df()
 
+# Calculo el cociente EE/CC y ordeno de mayor a menor
+cantidad_eecc_cada_mil["cociente_ee_cc"] = cantidad_eecc_cada_mil["cant_ee_cada_mil"] / cantidad_eecc_cada_mil["cant_cc_cada_mil"]
+cantidad_eecc_cada_mil = cantidad_eecc_cada_mil.sort_values("cociente_ee_cc", ascending=False)
 
 fig, ax = plt.subplots(2, 1, figsize=(10, 12))
 
-# Primer scatter (cantidad de EE y CC por cada mil habitantes)
-ax[0].scatter(cantidad_eecc_cada_mil["nombre"], cantidad_eecc_cada_mil["cant_ee_cada_mil"], label="Establecimientos Educativos", color="royalblue", s=150, zorder=2)
-ax[0].scatter(cantidad_eecc_cada_mil["nombre"], cantidad_eecc_cada_mil["cant_cc_cada_mil"], label="Centros Culturales", color="orange", s=150, zorder=2)
+# Primer scatter (relación EE/CC)
+ax[0].scatter(cantidad_eecc_cada_mil["nombre"], cantidad_eecc_cada_mil["cociente_ee_cc"], label="Cant EE/Cant CC por provincia", color="royalblue", s=150, zorder=2)
 
-ax[0].set_ylabel("Cantidad cada 1000 habitantes") 
+ax[0].set_ylabel("Cant EE/Cant CC") 
 ax[0].set_xlabel("Provincia")
 ax[0].set_xticklabels(cantidad_eecc_cada_mil["nombre"], rotation=60, ha="right")  
-ax[0].set_title("Cantidad de EE y CC cada 1000 habitantes por provincia")
-ax[0].legend()
+ax[0].set_title("Relación de EE y CC cada 1000 habitantes por provincia")
 ax[0].grid(zorder=1)
 
-# Segundo scatter (relación EE/CC)
-ax[1].scatter(cantidad_eecc_cada_mil["nombre"],  cantidad_eecc_cada_mil["cant_ee_cada_mil"]/cantidad_eecc_cada_mil["cant_cc_cada_mil"], label="Cant EE/Cant CC por provincia", color="royalblue", s=150, zorder=2)
+# Segundo scatter (cantidad de EE y CC por cada mil habitantes)
+ax[1].scatter(cantidad_eecc_cada_mil["nombre"], cantidad_eecc_cada_mil["cant_ee_cada_mil"], label="Establecimientos Educativos", color="royalblue", s=150, zorder=2)
+ax[1].scatter(cantidad_eecc_cada_mil["nombre"], cantidad_eecc_cada_mil["cant_cc_cada_mil"], label="Centros Culturales", color="orange", s=150, zorder=2)
 
-ax[1].set_ylabel("Cant EE/Cant CC") 
+ax[1].set_ylabel("Cantidad cada 1000 habitantes") 
 ax[1].set_xlabel("Provincia")
 ax[1].set_xticklabels(cantidad_eecc_cada_mil["nombre"], rotation=60, ha="right")  
-ax[1].set_title("Relación de EE y CC cada 1000 habitantes por provincia")
+ax[1].set_title("Cantidad de EE y CC cada 1000 habitantes por provincia")
+ax[1].legend()
 ax[1].grid(zorder=1)
 
 plt.tight_layout()
